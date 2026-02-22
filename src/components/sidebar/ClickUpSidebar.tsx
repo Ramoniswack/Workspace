@@ -1,0 +1,508 @@
+'use client';
+
+import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
+import { usePathname, useParams } from 'next/navigation';
+import {
+  Home,
+  Inbox,
+  Bell,
+  Settings,
+  Plus,
+  Star,
+  ChevronDown,
+  Loader2,
+  User,
+  Users,
+  BarChart3,
+  FileText,
+  MoreHorizontal,
+  UserPlus,
+  MessageSquare,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useUIStore } from '@/store/useUIStore';
+import { useModalStore } from '@/store/useModalStore';
+import { usePermissions, useWorkspaceContext } from '@/store/useAuthStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { useThemeStore, accentColors, getGradientColor } from '@/store/useThemeStore';
+import { HierarchyItemComponent } from './HierarchyItem';
+import { WorkspaceHierarchy } from '@/types/hierarchy';
+import { CreateItemModal } from '@/components/modals/CreateItemModal';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { api } from '@/lib/axios';
+
+export function ClickUpSidebar() {
+  const pathname = usePathname();
+  const params = useParams();
+  const { favoriteIds } = useUIStore();
+  const { openModal, setOnSuccess } = useModalStore();
+  const { can } = usePermissions();
+  const { setWorkspaceContext } = useWorkspaceContext();
+  const { unreadCount } = useNotificationStore();
+  const { accentColor } = useThemeStore();
+  
+  const [hierarchy, setHierarchy] = useState<WorkspaceHierarchy | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [userName, setUserName] = useState('User');
+  const [userEmail, setUserEmail] = useState('user@example.com');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  // Extract workspaceId from URL
+  let workspaceId = params?.id as string;
+  
+  if (!workspaceId && pathname) {
+    const workspaceMatch = pathname.match(/\/workspace\/([^\/]+)/);
+    if (workspaceMatch) {
+      workspaceId = workspaceMatch[1];
+    }
+  }
+
+  const themeColor = accentColors[accentColor];
+  const gradientStyle = getGradientColor(themeColor);
+
+  // Load user info from localStorage
+  useEffect(() => {
+    setIsClient(true);
+    if (typeof window !== 'undefined') {
+      const storedName = localStorage.getItem('userName');
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedUserId = localStorage.getItem('userId');
+      const storedAvatar = localStorage.getItem('userAvatar');
+      if (storedName) setUserName(storedName);
+      if (storedEmail) setUserEmail(storedEmail);
+      if (storedUserId) setUserId(storedUserId);
+      if (storedAvatar) setUserAvatar(storedAvatar);
+    }
+  }, []);
+
+  // Fetch hierarchy
+  const fetchHierarchy = useCallback(async () => {
+    if (!workspaceId) {
+      setLoading(false);
+      return;
+    }
+
+    if (!/^[0-9a-fA-F]{24}$/.test(workspaceId)) {
+      console.error('Invalid workspace ID format:', workspaceId);
+      setError('Invalid workspace ID');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const workspaceRes = await api.get(`/workspaces/${workspaceId}`);
+      const workspace = workspaceRes.data.data || workspaceRes.data;
+
+      if (!workspace || !workspace._id) {
+        throw new Error('Workspace not found');
+      }
+
+      if (userId) {
+        const userMember = workspace.members?.find((m: any) => m.user === userId || m.user._id === userId);
+        if (userMember) {
+          setWorkspaceContext(workspace._id, userMember.role);
+        }
+      }
+
+      const spacesRes = await api.get(`/workspaces/${workspaceId}/spaces`);
+      const spaces = spacesRes.data.data || spacesRes.data || [];
+
+      const spacesWithData = await Promise.all(
+        spaces.map(async (space: any) => {
+          try {
+            const listsRes = await api.get(`/spaces/${space._id}/lists`);
+            const lists = listsRes.data.data || listsRes.data || [];
+
+            return {
+              ...space,
+              type: 'space',
+              lists: lists.map((list: any) => ({
+                ...list,
+                type: 'list',
+              })),
+              folders: [],
+            };
+          } catch (err) {
+            console.error(`Failed to fetch lists for space ${space._id}:`, err);
+            return {
+              ...space,
+              type: 'space',
+              lists: [],
+              folders: [],
+            };
+          }
+        })
+      );
+
+      setHierarchy({
+        workspaceId: workspace._id,
+        workspaceName: workspace.name,
+        spaces: spacesWithData,
+      });
+    } catch (err: any) {
+      console.error('Failed to fetch hierarchy:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to load workspace';
+      setError(errorMessage);
+      
+      if (err.response?.status === 404) {
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/dashboard';
+          }
+        }, 2000);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId, userId, setWorkspaceContext]);
+
+  useEffect(() => {
+    if (workspaceId) {
+      fetchHierarchy();
+      setOnSuccess(() => fetchHierarchy);
+    }
+  }, [workspaceId, fetchHierarchy, setOnSuccess]);
+
+  const favoriteItems = hierarchy?.spaces
+    .flatMap((space) => [
+      space,
+      ...(space.folders || []),
+      ...(space.lists || []),
+    ])
+    .filter((item) => favoriteIds.includes(item._id)) || [];
+
+  const handleCreateSpace = () => {
+    if (workspaceId && hierarchy) {
+      openModal('space', workspaceId, 'workspace', hierarchy.workspaceName);
+    }
+  };
+
+  const handleInvite = () => {
+    if (typeof window !== 'undefined' && workspaceId) {
+      window.location.href = `/workspace/${workspaceId}/settings/members`;
+    }
+  };
+
+  // Don't render if not in workspace or on dashboard
+  if (!workspaceId || pathname === '/dashboard') {
+    return null;
+  }
+
+  return (
+    <>
+      <CreateItemModal />
+      
+      <div className="flex h-screen">
+        {/* Left Icon Bar - Accent Color with Gradient - REDUCED WIDTH */}
+        <div
+          className="w-[60px] flex flex-col items-center py-4 transition-colors duration-300"
+          style={{
+            background: gradientStyle,
+          }}
+        >
+          {/* Workspace Avatar */}
+          <div className="mb-6">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base shadow-lg"
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff'
+              }}
+            >
+              {hierarchy?.workspaceName?.charAt(0) || 'W'}
+            </div>
+          </div>
+
+          {/* Primary Navigation */}
+          <div className="flex-1 flex flex-col gap-2 w-full px-2">
+            <Link
+              href={`/workspace/${workspaceId}`}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
+                pathname === `/workspace/${workspaceId}`
+                  ? 'bg-white/20 shadow-md'
+                  : 'hover:bg-white/10'
+              )}
+              title="Home"
+            >
+              <Home 
+                className="w-5 h-5" 
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              />
+              <span 
+                className="text-[9px] font-medium"
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              >
+                Home
+              </span>
+            </Link>
+            
+            <Link
+              href={`/workspace/${workspaceId}/dashboard`}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
+                pathname === `/workspace/${workspaceId}/dashboard`
+                  ? 'bg-white/20 shadow-md'
+                  : 'hover:bg-white/10'
+              )}
+              title="Dashboard"
+            >
+              <BarChart3 
+                className="w-5 h-5" 
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              />
+              <span 
+                className="text-[9px] font-medium"
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              >
+                Dash
+              </span>
+            </Link>
+            
+            <button 
+              className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
+              title="More"
+            >
+              <MoreHorizontal 
+                className="w-5 h-5" 
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              />
+              <span 
+                className="text-[9px] font-medium"
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              >
+                More
+              </span>
+            </button>
+          </div>
+
+          {/* Bottom Actions */}
+          <div className="flex flex-col gap-2 w-full px-2 mt-auto">
+            <button 
+              onClick={handleInvite}
+              className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
+              title="Workspace Members"
+            >
+              <UserPlus 
+                className="w-5 h-5" 
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              />
+              <span 
+                className="text-[9px] font-medium text-center"
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              >
+                Members
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Main Sidebar Content - Reduced Width */}
+        <div className="w-[240px] bg-white dark:bg-[#1a1a1a] border-r border-slate-200 dark:border-[#262626] flex flex-col">
+          {/* Workspace Header */}
+          <div className="p-3 border-b border-slate-200 dark:border-[#262626]">
+            <button className="flex items-center gap-2 w-full hover:bg-slate-50 dark:hover:bg-[#262626] rounded-lg p-2 transition-colors">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-semibold text-xs"
+                style={{ backgroundColor: themeColor }}
+              >
+                {hierarchy?.workspaceName?.charAt(0) || 'W'}
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <div className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                  {hierarchy?.workspaceName || 'Workspace'}
+                </div>
+              </div>
+              <ChevronDown className="w-3 h-3 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+            </button>
+          </div>
+
+
+
+          {/* Scrollable Content */}
+          <ScrollArea className="flex-1 px-3">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400 dark:text-slate-500" />
+              </div>
+            ) : error ? (
+              <div className="py-8 px-2 text-center">
+                <p className="text-xs text-red-600 dark:text-red-400 mb-2">Failed to load</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{error}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-7 text-xs"
+                  onClick={fetchHierarchy}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4 py-2">
+                {/* Quick Links */}
+                <div>
+                  <div className="space-y-0.5">
+                    <Link
+                      href={`/workspace/${workspaceId}/chat`}
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors',
+                        pathname === `/workspace/${workspaceId}/chat`
+                          ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                      )}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Group Chat
+                    </Link>
+                    <Link
+                      href={`/workspace/${workspaceId}/inbox`}
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors',
+                        pathname === `/workspace/${workspaceId}/inbox`
+                          ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                      )}
+                    >
+                      <Inbox className="w-3.5 h-3.5" />
+                      Inbox (DMs)
+                    </Link>
+                    <Link
+                      href={`/workspace/${workspaceId}/docs`}
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors',
+                        pathname?.includes('/docs')
+                          ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                      )}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Documents
+                    </Link>
+                    <Link
+                      href="/notifications"
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors relative',
+                        pathname === '/notifications'
+                          ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                      )}
+                    >
+                      <Bell className="w-3.5 h-3.5" />
+                      Notifications
+                      {unreadCount > 0 && (
+                        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </Link>
+
+                  </div>
+                </div>
+
+                {/* Favorites */}
+                {favoriteItems.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
+                      <Star className="w-3 h-3 text-amber-500" />
+                      <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                        Favorites
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {favoriteItems.map((item) => (
+                        <HierarchyItemComponent
+                          key={item._id}
+                          item={item}
+                          level={0}
+                          workspaceId={workspaceId}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Spaces */}
+                <div>
+                  <div className="flex items-center justify-between px-2 py-1 mb-1">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                      Spaces
+                    </span>
+                    {isClient && can('create_space') && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-5 w-5"
+                        onClick={handleCreateSpace}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                  {hierarchy?.spaces && hierarchy.spaces.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {hierarchy.spaces.map((space) => (
+                        <HierarchyItemComponent
+                          key={space._id}
+                          item={space}
+                          level={0}
+                          workspaceId={workspaceId}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-2 py-3 text-center">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">No spaces yet</p>
+                      {isClient && can('create_space') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 h-7 text-xs"
+                          onClick={handleCreateSpace}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Create Space
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+
+          {/* User Profile */}
+          <div className="p-2 border-t border-slate-200 dark:border-[#262626]">
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-[#262626] rounded-md transition-colors">
+              <Avatar className="h-7 w-7 flex-shrink-0">
+                {userAvatar ? (
+                  <AvatarImage src={userAvatar} alt={userName} />
+                ) : null}
+                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+                  <User className="h-3.5 w-3.5" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 text-left min-w-0">
+                <div className="font-medium truncate text-slate-900 dark:text-white text-[11px]">
+                  {userName}
+                </div>
+                <div className="text-[10px] truncate text-slate-500 dark:text-slate-400">
+                  {userEmail}
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
