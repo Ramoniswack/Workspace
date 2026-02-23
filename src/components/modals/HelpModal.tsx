@@ -74,16 +74,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
 
                 <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Plus className="w-4 h-4 text-slate-500" />
-                    <span className="text-sm text-slate-900 dark:text-white">Create New Task</span>
-                  </div>
-                  <kbd className="px-3 py-1 bg-white dark:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 text-xs font-mono">
-                    Cmd/Ctrl + N
-                  </kbd>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <div className="flex items-center gap-3">
                     <Keyboard className="w-4 h-4 text-slate-500" />
                     <span className="text-sm text-slate-900 dark:text-white">Navigate Results</span>
                   </div>

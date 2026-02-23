@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, Square, Folder, Hash, Palette } from 'lucide-react';
 import { useModalStore } from '@/store/useModalStore';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { api } from '@/lib/axios';
 import {
   Dialog,
@@ -26,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 // Form schema
 const createItemSchema = z.object({
@@ -51,6 +53,7 @@ const COLORS = [
 
 export function CreateItemModal() {
   const { isOpen, type, parentId, parentType, parentName, closeModal, onSuccess } = useModalStore();
+  const { addSpace, addFolder, addList } = useWorkspaceStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
 
@@ -146,9 +149,36 @@ export function CreateItemModal() {
         ...(values.color && { color: selectedColor }),
       };
 
-      await api.post(endpoint, payload);
+      const response = await api.post(endpoint, payload);
+      const createdItem = response.data.data;
 
-      // Success - close modal and trigger refresh
+      // Optimistic update to global store
+      if (type === 'space') {
+        addSpace({
+          ...createdItem,
+          type: 'space',
+          folders: [],
+          listsWithoutFolder: [],
+        });
+        toast.success('Space created successfully!');
+      } else if (type === 'folder') {
+        addFolder(parentId, {
+          ...createdItem,
+          type: 'folder',
+          lists: [],
+        });
+        toast.success('Folder created successfully!');
+      } else if (type === 'list') {
+        const folderId = parentType === 'folder' ? parentId : undefined;
+        const spaceId = parentType === 'space' ? parentId : createdItem.space;
+        addList(spaceId, {
+          ...createdItem,
+          type: 'list',
+        }, folderId);
+        toast.success('List created successfully!');
+      }
+
+      // Success - close modal
       closeModal();
       form.reset();
       
@@ -156,9 +186,6 @@ export function CreateItemModal() {
       if (onSuccess) {
         onSuccess();
       }
-
-      // Show success message (optional)
-      console.log(`${type} created successfully`);
     } catch (error: any) {
       console.error(`Failed to create ${type}:`, error);
       
@@ -167,6 +194,7 @@ export function CreateItemModal() {
         type: 'manual',
         message: error.response?.data?.message || `Failed to create ${type}`,
       });
+      toast.error(`Failed to create ${type}`);
     } finally {
       setIsSubmitting(false);
     }

@@ -46,10 +46,11 @@ export interface List {
 }
 
 export interface Task {
+  name: ReactNode;
   _id: string;
   title: string;
   description?: string;
-  status: 'todo' | 'inprogress' | 'done' | 'cancelled';
+  status: 'todo' | 'inprogress' | 'review' | 'done' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   list: string | List;
   space: string | Space;

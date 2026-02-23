@@ -1,107 +1,276 @@
 import { create } from 'zustand';
-import { api } from '@/lib/axios';
-import { Workspace } from '@/types';
 
-interface WorkspaceStore {
-  workspaces: Workspace[];
-  loading: boolean;
-  error: string | null;
-  lastAccessedWorkspaceId: string | null;
-  
-  // Actions
-  fetchWorkspaces: () => Promise<void>;
-  createWorkspace: (name: string, description?: string) => Promise<Workspace>;
-  updateWorkspace: (workspaceId: string, data: { name?: string; description?: string }) => Promise<void>;
-  deleteWorkspace: (workspaceId: string) => Promise<void>;
-  setLastAccessedWorkspace: (workspaceId: string) => void;
-  getWorkspaceById: (workspaceId: string) => Workspace | undefined;
+export interface List {
+  _id: string;
+  name: string;
+  description?: string;
+  space: string;
+  folder?: string;
+  workspace: string;
+  status: string;
+  type: 'list';
 }
 
-export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
-  workspaces: [],
+export interface Folder {
+  _id: string;
+  name: string;
+  space: string;
+  workspace: string;
+  lists: List[];
+  type: 'folder';
+}
+
+export interface Space {
+  _id: string;
+  name: string;
+  description?: string;
+  workspace: string;
+  color?: string;
+  icon?: string;
+  status: string;
+  members?: any[];
+  folders: Folder[];
+  listsWithoutFolder: List[];
+  type: 'space';
+}
+
+export interface WorkspaceHierarchy {
+  workspaceId: string;
+  workspaceName: string;
+  spaces: Space[];
+}
+
+interface WorkspaceStore {
+  hierarchy: WorkspaceHierarchy | null;
+  loading: boolean;
+  error: string | null;
+  
+  // Actions
+  setHierarchy: (hierarchy: WorkspaceHierarchy) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  
+  // Optimistic updates
+  addSpace: (space: Space) => void;
+  updateSpace: (spaceId: string, updates: Partial<Space>) => void;
+  deleteSpace: (spaceId: string) => void;
+  
+  addFolder: (spaceId: string, folder: Folder) => void;
+  updateFolder: (spaceId: string, folderId: string, updates: Partial<Folder>) => void;
+  deleteFolder: (spaceId: string, folderId: string) => void;
+  
+  addList: (spaceId: string, list: List, folderId?: string) => void;
+  updateList: (spaceId: string, listId: string, updates: Partial<List>, folderId?: string) => void;
+  deleteList: (spaceId: string, listId: string, folderId?: string) => void;
+  
+  // Clear store
+  clear: () => void;
+}
+
+export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
+  hierarchy: null,
   loading: false,
   error: null,
-  lastAccessedWorkspaceId: typeof window !== 'undefined' 
-    ? localStorage.getItem('lastAccessedWorkspaceId') 
-    : null,
 
-  fetchWorkspaces: async () => {
-    set({ loading: true, error: null });
-    try {
-      const response = await api.get('/workspaces');
-      set({ workspaces: response.data.data, loading: false });
-    } catch (error: any) {
-      set({ 
-        error: error.response?.data?.message || 'Failed to load workspaces',
-        loading: false 
-      });
-    }
-  },
+  setHierarchy: (hierarchy) => set({ hierarchy, error: null }),
+  setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error }),
 
-  createWorkspace: async (name: string, description?: string) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await api.post('/workspaces', { name, description });
-      const newWorkspace = response.data.data;
-      set(state => ({ 
-        workspaces: [...state.workspaces, newWorkspace],
-        loading: false 
-      }));
-      return newWorkspace;
-    } catch (error: any) {
-      set({ 
-        error: error.response?.data?.message || 'Failed to create workspace',
-        loading: false 
-      });
-      throw error;
-    }
-  },
+  // Optimistic space updates
+  addSpace: (space) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: [...state.hierarchy.spaces, space],
+        },
+      };
+    }),
 
-  updateWorkspace: async (workspaceId: string, data: { name?: string; description?: string }) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await api.patch(`/workspaces/${workspaceId}`, data);
-      const updatedWorkspace = response.data.data;
-      set(state => ({ 
-        workspaces: state.workspaces.map(w => 
-          w._id === workspaceId ? { ...w, ...updatedWorkspace } : w
-        ),
-        loading: false 
-      }));
-    } catch (error: any) {
-      set({ 
-        error: error.response?.data?.message || 'Failed to update workspace',
-        loading: false 
-      });
-      throw error;
-    }
-  },
+  updateSpace: (spaceId, updates) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) =>
+            space._id === spaceId ? { ...space, ...updates } : space
+          ),
+        },
+      };
+    }),
 
-  deleteWorkspace: async (workspaceId: string) => {
-    set({ loading: true, error: null });
-    try {
-      await api.delete(`/workspaces/${workspaceId}`);
-      set(state => ({ 
-        workspaces: state.workspaces.filter(w => w._id !== workspaceId),
-        loading: false 
-      }));
-    } catch (error: any) {
-      set({ 
-        error: error.response?.data?.message || 'Failed to delete workspace',
-        loading: false 
-      });
-      throw error;
-    }
-  },
+  deleteSpace: (spaceId) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.filter((space) => space._id !== spaceId),
+        },
+      };
+    }),
 
-  setLastAccessedWorkspace: (workspaceId: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('lastAccessedWorkspaceId', workspaceId);
-    }
-    set({ lastAccessedWorkspaceId: workspaceId });
-  },
+  // Optimistic folder updates
+  addFolder: (spaceId, folder) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) =>
+            space._id === spaceId
+              ? { ...space, folders: [...space.folders, folder] }
+              : space
+          ),
+        },
+      };
+    }),
 
-  getWorkspaceById: (workspaceId: string) => {
-    return get().workspaces.find(w => w._id === workspaceId);
-  },
+  updateFolder: (spaceId, folderId, updates) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) =>
+            space._id === spaceId
+              ? {
+                  ...space,
+                  folders: space.folders.map((folder) =>
+                    folder._id === folderId ? { ...folder, ...updates } : folder
+                  ),
+                }
+              : space
+          ),
+        },
+      };
+    }),
+
+  deleteFolder: (spaceId, folderId) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) =>
+            space._id === spaceId
+              ? {
+                  ...space,
+                  folders: space.folders.filter((folder) => folder._id !== folderId),
+                }
+              : space
+          ),
+        },
+      };
+    }),
+
+  // Optimistic list updates
+  addList: (spaceId, list, folderId) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) => {
+            if (space._id !== spaceId) return space;
+
+            if (folderId) {
+              // Add to folder
+              return {
+                ...space,
+                folders: space.folders.map((folder) =>
+                  folder._id === folderId
+                    ? { ...folder, lists: [...folder.lists, list] }
+                    : folder
+                ),
+              };
+            } else {
+              // Add to standalone lists
+              return {
+                ...space,
+                listsWithoutFolder: [...space.listsWithoutFolder, list],
+              };
+            }
+          }),
+        },
+      };
+    }),
+
+  updateList: (spaceId, listId, updates, folderId) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) => {
+            if (space._id !== spaceId) return space;
+
+            if (folderId) {
+              // Update in folder
+              return {
+                ...space,
+                folders: space.folders.map((folder) =>
+                  folder._id === folderId
+                    ? {
+                        ...folder,
+                        lists: folder.lists.map((list) =>
+                          list._id === listId ? { ...list, ...updates } : list
+                        ),
+                      }
+                    : folder
+                ),
+              };
+            } else {
+              // Update in standalone lists
+              return {
+                ...space,
+                listsWithoutFolder: space.listsWithoutFolder.map((list) =>
+                  list._id === listId ? { ...list, ...updates } : list
+                ),
+              };
+            }
+          }),
+        },
+      };
+    }),
+
+  deleteList: (spaceId, listId, folderId) =>
+    set((state) => {
+      if (!state.hierarchy) return state;
+      return {
+        hierarchy: {
+          ...state.hierarchy,
+          spaces: state.hierarchy.spaces.map((space) => {
+            if (space._id !== spaceId) return space;
+
+            if (folderId) {
+              // Delete from folder
+              return {
+                ...space,
+                folders: space.folders.map((folder) =>
+                  folder._id === folderId
+                    ? {
+                        ...folder,
+                        lists: folder.lists.filter((list) => list._id !== listId),
+                      }
+                    : folder
+                ),
+              };
+            } else {
+              // Delete from standalone lists
+              return {
+                ...space,
+                listsWithoutFolder: space.listsWithoutFolder.filter(
+                  (list) => list._id !== listId
+                ),
+              };
+            }
+          }),
+        },
+      };
+    }),
+
+  clear: () => set({ hierarchy: null, loading: false, error: null }),
 }));

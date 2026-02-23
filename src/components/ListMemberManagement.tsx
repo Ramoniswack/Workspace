@@ -83,6 +83,34 @@ export function ListMemberManagement({
     }
   };
 
+  const handleAddMember = async (userId: string, permissionLevel: string = 'EDIT') => {
+    try {
+      await api.post(`/lists/${listId}/list-members`, {
+        userId,
+        permissionLevel,
+      });
+      
+      // Send notification to the assigned member
+      try {
+        await api.post('/notifications', {
+          recipientId: userId,
+          type: 'list_assignment',
+          title: 'Assigned to List',
+          message: `You've been assigned to "${listName}"`,
+          link: `/workspace/${listId}`, // Will be updated with proper workspace/space/list path
+        });
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+      }
+      
+      toast.success('Member assigned to list');
+      fetchMembers();
+    } catch (error) {
+      console.error('Failed to assign member:', error);
+      toast.error('Failed to assign member');
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -104,7 +132,6 @@ export function ListMemberManagement({
     const permissionColors: Record<string, string> = {
       FULL: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400',
       EDIT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
-      COMMENT: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400',
       VIEW: 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400',
     };
 
@@ -131,7 +158,13 @@ export function ListMemberManagement({
         <DialogHeader>
           <DialogTitle>List Permissions - {listName}</DialogTitle>
           <DialogDescription>
-            Manage member permissions for this list. Members with list access can create and edit tasks.
+            Manage member permissions for this list.
+            <br />
+            <strong>Full Access:</strong> Create, edit, delete tasks
+            <br />
+            <strong>Can Edit:</strong> Create and edit tasks, change status
+            <br />
+            <strong>View Only:</strong> View tasks only
           </DialogDescription>
         </DialogHeader>
 
@@ -193,7 +226,6 @@ export function ListMemberManagement({
                             <SelectContent>
                               <SelectItem value="FULL">Full Access</SelectItem>
                               <SelectItem value="EDIT">Can Edit</SelectItem>
-                              <SelectItem value="COMMENT">Can Comment</SelectItem>
                               <SelectItem value="VIEW">View Only</SelectItem>
                             </SelectContent>
                           </Select>
@@ -222,7 +254,7 @@ export function ListMemberManagement({
                     {membersWithoutAccess.map((member) => (
                       <div
                         key={member._id}
-                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg opacity-60"
+                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex items-center gap-3 flex-1">
                           <Avatar className="w-10 h-10">
@@ -239,7 +271,21 @@ export function ListMemberManagement({
                           </div>
                           {getPermissionBadge(member)}
                         </div>
-                        <p className="text-xs text-muted-foreground">No list access</p>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            defaultValue="EDIT"
+                            onValueChange={(value) => handleAddMember(member._id, value)}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="Assign to list" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="FULL">Full Access</SelectItem>
+                              <SelectItem value="EDIT">Can Edit</SelectItem>
+                              <SelectItem value="VIEW">View Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     ))}
                   </div>

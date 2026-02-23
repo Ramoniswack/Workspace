@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearAuthData, getCurrentUser } from '@/lib/auth';
-import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { 
   Plus, 
@@ -65,17 +64,11 @@ export default function DashboardPage() {
   const router = useRouter();
   const { isConnected } = useSocket();
   const { userId } = useAuthStore();
-  const { 
-    workspaces, 
-    loading, 
-    error, 
-    fetchWorkspaces, 
-    createWorkspace, 
-    updateWorkspace,
-    deleteWorkspace,
-    lastAccessedWorkspaceId,
-    setLastAccessedWorkspace
-  } = useWorkspaceStore();
+  
+  // Local state for workspaces
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -87,6 +80,21 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState('');
   const [workspaceSpaces, setWorkspaceSpaces] = useState<Record<string, any[]>>({});
   const [workspaceActivity, setWorkspaceActivity] = useState<Record<string, string>>({});
+
+  // Fetch workspaces
+  const fetchWorkspaces = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get('/workspaces');
+      setWorkspaces(response.data.data || []);
+    } catch (err: any) {
+      console.error('Failed to fetch workspaces:', err);
+      setError(err.response?.data?.message || 'Failed to load workspaces');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -105,6 +113,8 @@ export default function DashboardPage() {
 
   // Fetch spaces for each workspace
   useEffect(() => {
+    if (!workspaces || workspaces.length === 0) return;
+    
     const fetchSpacesForWorkspaces = async () => {
       for (const workspace of workspaces) {
         try {
@@ -119,7 +129,7 @@ export default function DashboardPage() {
       }
     };
 
-    if (workspaces.length > 0) {
+    if (workspaces && workspaces.length > 0) {
       fetchSpacesForWorkspaces();
     }
   }, [workspaces]);
@@ -131,12 +141,17 @@ export default function DashboardPage() {
     setCreating(true);
 
     try {
-      await createWorkspace(newWorkspaceName.trim());
+      const response = await api.post('/workspaces', { name: newWorkspaceName.trim() });
+      const newWorkspace = response.data.data;
+      
+      // Optimistic update
+      setWorkspaces(prev => [...prev, newWorkspace]);
+      
       setNewWorkspaceName('');
       setShowCreateModal(false);
       toast.success('Workspace created successfully!');
     } catch (error: any) {
-      toast.error('Failed to create workspace');
+      toast.error(error.response?.data?.message || 'Failed to create workspace');
     } finally {
       setCreating(false);
     }
@@ -148,10 +163,14 @@ export default function DashboardPage() {
     }
 
     try {
-      await deleteWorkspace(workspaceId);
+      await api.delete(`/workspaces/${workspaceId}`);
+      
+      // Optimistic update
+      setWorkspaces(prev => prev.filter(w => w._id !== workspaceId));
+      
       toast.success('Workspace deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete workspace');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete workspace');
     }
   };
 
@@ -162,7 +181,15 @@ export default function DashboardPage() {
     setRenaming(true);
 
     try {
-      await updateWorkspace(selectedWorkspace._id, { name: renameWorkspaceName.trim() });
+      await api.patch(`/workspaces/${selectedWorkspace._id}`, { name: renameWorkspaceName.trim() });
+      
+      // Optimistic update
+      setWorkspaces(prev => prev.map(w => 
+        w._id === selectedWorkspace._id 
+          ? { ...w, name: renameWorkspaceName.trim() }
+          : w
+      ));
+      
       setRenameWorkspaceName('');
       setShowRenameModal(false);
       setSelectedWorkspace(null);
@@ -181,7 +208,6 @@ export default function DashboardPage() {
   };
 
   const handleLaunchWorkspace = (workspaceId: string) => {
-    setLastAccessedWorkspace(workspaceId);
     router.push(`/workspace/${workspaceId}`);
   };
 
@@ -291,8 +317,10 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {workspaces.map((workspace) => {
               const spaces = workspaceSpaces[workspace._id] || [];
-              const isCurrentWorkspace = workspace._id === lastAccessedWorkspaceId;
-              const isWorkspaceOwner = isOwner(workspace);
+              const isWorkspaceOwner = workspace.owner === userId || workspace.members?.some((m: any) => {
+                const memberId = typeof m.user === 'string' ? m.user : m.user?._id;
+                return memberId === userId && (m.role === 'owner' || m.role === 'admin');
+              });
               
               return (
                 <Card
@@ -353,13 +381,6 @@ export default function DashboardPage() {
                         </DropdownMenu>
                       )}
                     </div>
-
-                    {/* Current Badge */}
-                    {isCurrentWorkspace && (
-                      <Badge className="mb-3 bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 hover:bg-green-100">
-                        Current
-                      </Badge>
-                    )}
 
                     {/* Activity Status */}
                     <div className="flex items-center gap-2 mb-4 text-xs text-gray-600 dark:text-gray-400">

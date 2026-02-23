@@ -42,6 +42,12 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   error: null,
 
   fetchSpace: async (spaceId: string) => {
+    if (!spaceId || spaceId === 'undefined') {
+      console.warn('[useSpaceStore] fetchSpace called with invalid spaceId:', spaceId);
+      set({ loading: false, error: 'Space ID is required' });
+      return;
+    }
+    
     set({ loading: true, error: null });
     try {
       const response = await api.get(`/spaces/${spaceId}`);
@@ -56,6 +62,12 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   },
 
   fetchLists: async (spaceId: string) => {
+    if (!spaceId || spaceId === 'undefined') {
+      console.warn('[useSpaceStore] fetchLists called with invalid spaceId:', spaceId);
+      set({ lists: [] });
+      return;
+    }
+    
     try {
       const response = await api.get(`/spaces/${spaceId}/lists`);
       set({ lists: response.data.data });
@@ -66,12 +78,18 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   },
 
   fetchFolders: async (spaceId: string) => {
+    if (!spaceId || spaceId === 'undefined') {
+      console.warn('[useSpaceStore] fetchFolders called with invalid spaceId:', spaceId);
+      set({ folders: [] });
+      return;
+    }
+    
     try {
-      // Note: Folders endpoint might not exist yet, handle gracefully
       const response = await api.get(`/spaces/${spaceId}/folders`);
       set({ folders: response.data.data });
     } catch (error: any) {
       // If folders endpoint doesn't exist, just set empty array
+      console.log('[useSpaceStore] fetchFolders error (setting empty array):', error.response?.status);
       set({ folders: [] });
     }
   },

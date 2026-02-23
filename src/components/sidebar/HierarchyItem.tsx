@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -31,23 +31,56 @@ interface HierarchyItemProps {
   item: HierarchyItem;
   level: number;
   workspaceId: string;
+  parentSpaceId?: string;
 }
 
 const INDENT_SIZE = 12; // pixels per level
 
-export function HierarchyItemComponent({ item, level, workspaceId }: HierarchyItemProps) {
+export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId }: HierarchyItemProps) {
   const pathname = usePathname();
   const { expandedIds, toggleExpanded, favoriteIds, toggleFavorite } = useUIStore();
   const { openModal } = useModalStore();
   const [isHovered, setIsHovered] = useState(false);
+  const [canCreateContent, setCanCreateContent] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get userId from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedUserId = localStorage.getItem('userId');
+      setUserId(storedUserId);
+    }
+  }, []);
+
+  // Check if user can create content (only for spaces)
+  useEffect(() => {
+    if (item.type === 'space' && userId) {
+      // Get workspace role from localStorage or check if user is space admin
+      const workspaceRole = localStorage.getItem('workspaceRole');
+      const isOwnerOrAdmin = workspaceRole === 'owner' || workspaceRole === 'admin';
+      setCanCreateContent(isOwnerOrAdmin);
+    }
+  }, [item.type, userId]);
 
   const isExpanded = expandedIds.includes(item._id);
   const isFavorite = favoriteIds.includes(item._id);
 
   // Determine if item has children
   const hasChildren =
-    (item.type === 'space' && ((item.folders && item.folders.length > 0) || (item.lists && item.lists.length > 0))) ||
+    (item.type === 'space' && ((item.folders && item.folders.length > 0) || ((item as any).listsWithoutFolder && (item as any).listsWithoutFolder.length > 0))) ||
     (item.type === 'folder' && item.lists && item.lists.length > 0);
+
+  // Debug log
+  useEffect(() => {
+    if (item.type === 'space') {
+      console.log(`[HierarchyItem] Space "${item.name}":`, {
+        folders: item.folders?.length || 0,
+        listsWithoutFolder: (item as any).listsWithoutFolder?.length || 0,
+        hasChildren,
+        isExpanded
+      });
+    }
+  }, [item, hasChildren, isExpanded]);
 
   // Get icon based on type
   const getIcon = () => {
@@ -64,23 +97,23 @@ export function HierarchyItemComponent({ item, level, workspaceId }: HierarchyIt
   };
 
   // Get route based on type
-  const getRoute = () => {
-    switch (item.type) {
-      case 'space':
-        return `/workspace/${workspaceId}/spaces/${item._id}`;
-      case 'folder':
-        return `/workspace/${workspaceId}/folder/${item._id}`;
-      case 'list':
-        // Lists navigate to: /workspace/[wsId]/spaces/[spaceId]/lists/[listId]
-        const spaceId = (item as any).space;
-        if (spaceId) {
-          return `/workspace/${workspaceId}/spaces/${spaceId}/lists/${item._id}`;
-        }
-        return '#';
-      default:
-        return '#';
-    }
-  };
+const getRoute = () => {
+  switch (item.type) {
+    case 'space':
+      return `/workspace/${workspaceId}/spaces/${item._id}`;
+
+    case 'folder':
+      if (!parentSpaceId) return '#';
+      return `/workspace/${workspaceId}/spaces/${parentSpaceId}?folder=${item._id}`;
+
+    case 'list':
+      if (!parentSpaceId) return '#';
+      return `/workspace/${workspaceId}/spaces/${parentSpaceId}/lists/${item._id}`;
+
+    default:
+      return '#';
+  }
+};
 
   const route = getRoute();
   const isActive = pathname === route;
@@ -159,6 +192,13 @@ export function HierarchyItemComponent({ item, level, workspaceId }: HierarchyIt
           {/* Name */}
           <span className="flex-1 text-sm truncate">{item.name}</span>
 
+          {/* Task Count for Lists */}
+          {item.type === 'list' && (
+            <span className="text-xs text-muted-foreground flex-shrink-0">
+              {item.completedTasks || 0}/{item.totalTasks || 0}
+            </span>
+          )}
+
           {/* Favorite Star */}
           {isFavorite && (
             <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0" />
@@ -167,8 +207,20 @@ export function HierarchyItemComponent({ item, level, workspaceId }: HierarchyIt
           {/* Hover Actions */}
           {isHovered && (
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/* Add Button */}
-              {item.type !== 'list' && (
+              {/* Add Button - Only show for spaces if user is owner/admin */}
+              {item.type === 'space' && canCreateContent && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={handleAdd}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              )}
+              
+              {/* Add Button - Only show for folders if user is owner/admin */}
+              {item.type === 'folder' && canCreateContent && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -196,24 +248,24 @@ export function HierarchyItemComponent({ item, level, workspaceId }: HierarchyIt
                     <Star className="h-4 w-4 mr-2" />
                     {isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (item.type === 'space') {
-                        openModal('list', item._id, 'space', item.name);
-                      } else if (item.type === 'folder') {
-                        openModal('list', item._id, 'folder', item.name);
-                      }
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    {item.type === 'space' ? 'New list' : 'New list'}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>Rename</DropdownMenuItem>
-                  <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                  {canCreateContent && item.type !== 'list' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (item.type === 'space') {
+                            openModal('list', item._id, 'space', item.name);
+                          } else if (item.type === 'folder') {
+                            openModal('list', item._id, 'folder', item.name);
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        {item.type === 'space' ? 'New list' : 'New list'}
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -233,25 +285,28 @@ export function HierarchyItemComponent({ item, level, workspaceId }: HierarchyIt
                   item={folder}
                   level={level + 1}
                   workspaceId={workspaceId}
+                  parentSpaceId={parentSpaceId}
                 />
               ))}
             </>
           )}
 
-          {/* Render lists */}
-          {item.type === 'space' && item.lists && item.lists.length > 0 && (
+          {/* Render standalone lists (lists without folder) */}
+          {item.type === 'space' && (item as any).listsWithoutFolder && (item as any).listsWithoutFolder.length > 0 && (
             <>
-              {item.lists.map((list) => (
+              {(item as any).listsWithoutFolder.map((list: any) => (
                 <HierarchyItemComponent
                   key={list._id}
                   item={list}
                   level={level + 1}
                   workspaceId={workspaceId}
+                  parentSpaceId={parentSpaceId}
                 />
               ))}
             </>
           )}
 
+          {/* Render lists inside folders */}
           {item.type === 'folder' && item.lists && item.lists.length > 0 && (
             <>
               {item.lists.map((list) => (

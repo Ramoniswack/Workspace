@@ -142,6 +142,36 @@ export async function login(email: string, password: string): Promise<void> {
 }
 
 /**
+ * Login with Google
+ */
+export async function loginWithGoogle(idToken: string): Promise<void> {
+  try {
+    console.log('🔐 Attempting Google login...');
+    console.log('📝 ID Token length:', idToken.length);
+    console.log('📝 ID Token preview:', idToken.substring(0, 50) + '...');
+    
+    const response = await api.post('/auth/google', { idToken });
+    console.log('✅ Google login response received:', response.data);
+    
+    const authData = normalizeAuthResponse(response.data);
+    console.log('✅ Auth data normalized:', authData);
+    
+    storeAuthData(authData);
+    console.log('✅ Auth data stored in localStorage');
+  } catch (error: any) {
+    console.error('❌ Google login error:', error);
+    console.error('❌ Error response:', error.response?.data);
+    console.error('❌ Error status:', error.response?.status);
+    console.error('❌ Error message:', error.response?.data?.message);
+    console.error('❌ Full error object:', JSON.stringify(error.response?.data, null, 2));
+    
+    // Show the actual backend error message
+    const backendMessage = error.response?.data?.message || error.response?.data?.error || 'Google login failed';
+    throw new Error(backendMessage);
+  }
+}
+
+/**
  * Logout the current user
  */
 export function logout(): void {

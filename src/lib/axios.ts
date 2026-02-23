@@ -13,9 +13,10 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      // Skip token validation for auth endpoints (login, register)
+      // Skip token validation for auth endpoints (login, register, google)
       const isAuthEndpoint = config.url?.includes('/auth/login') || 
-                            config.url?.includes('/auth/register');
+                            config.url?.includes('/auth/register') ||
+                            config.url?.includes('/auth/google');
       
       if (isAuthEndpoint) {
         // Allow auth requests to proceed without token

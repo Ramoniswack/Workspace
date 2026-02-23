@@ -51,8 +51,8 @@ import { useTaskStore } from '@/store/useTaskStore';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useActivityStore } from '@/store/useActivityStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { InviteMemberModal } from '@/components/InviteMemberModal';
 import { ListMemberManagement } from '@/components/ListMemberManagement';
+import { KanbanBoard } from '@/components/KanbanBoard';
 import { toast } from 'sonner';
 
 export default function ListView() {
@@ -89,17 +89,32 @@ export default function ListView() {
   const [listPermissionLevel, setListPermissionLevel] = useState<string | null>(null);
   const [listMembers, setListMembers] = useState<any[]>([]);
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
   const [showListMemberManagement, setShowListMemberManagement] = useState(false);
   const [listSettings, setListSettings] = useState({ name: '', description: '' });
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [searchMemberQuery, setSearchMemberQuery] = useState('');
 
   useEffect(() => {
-    fetchData();
-  }, [listId]);
+    if (listId && spaceId && workspaceId) {
+      fetchData();
+    }
+  }, [listId, spaceId, workspaceId]);
 
   const fetchData = async () => {
+    // Guard checks BEFORE any async operations
+    if (!listId) {
+      console.error('[ListPage] listId is null or undefined!');
+      return;
+    }
+    
+    if (!spaceId) {
+      console.error('[ListPage] spaceId is null or undefined!');
+      return;
+    }
+    
+    if (!workspaceId) {
+      console.error('[ListPage] workspaceId is null or undefined!');
+      return;
+    }
+    
     try {
       const [workspaceRes, spaceRes, listRes] = await Promise.all([
         api.get(`/workspaces/${workspaceId}`),
@@ -129,6 +144,15 @@ export default function ListView() {
         return memberId === userId;
       });
       const isAdmin = workspaceMember?.role === 'admin' || workspaceMember?.role === 'owner';
+      
+      // Set user role state
+      if (isOwner) {
+        setUserRole('owner');
+      } else if (isAdmin) {
+        setUserRole('admin');
+      } else {
+        setUserRole('member');
+      }
       
       // Check if user is a space member
       const spaceMemberIds = spaceData.members?.map((m: any) => 
@@ -162,27 +186,20 @@ export default function ListView() {
         setListPermissionLevel(null);
         setListMembers([]);
       }
-      
-      if (isOwner) {
-        setUserRole('owner');
-      } else if (isAdmin) {
-        setUserRole('admin');
-      } else {
-        setUserRole('member');
-      }
 
-      // Determine read-only status based on permissions
-      // Owner/Admin: Full access
-      // List member with EDIT or FULL: Can create/edit tasks
-      // List member with COMMENT: Can only comment
-      // List member with VIEW: Read-only
+      // Determine read-only status and permissions based on role and list membership
+      // Owner/Admin: Full access to everything
+      // List member with FULL: Can create, edit, delete tasks
+      // List member with EDIT: Can create and edit tasks, change status (no delete)
+      // List member with COMMENT: Can only comment (read-only for tasks)
+      // List member with VIEW: Can only view (read-only)
       // Not a list member: Read-only
       
       if (isOwner || isAdmin) {
         setIsReadOnly(false);
       } else if (userListMember && userListMember.hasOverride) {
         const permLevel = userListMember.listPermissionLevel;
-        // EDIT and FULL can create/edit, COMMENT and VIEW are read-only for task creation
+        // FULL and EDIT can create/edit tasks, COMMENT and VIEW are read-only
         setIsReadOnly(permLevel === 'VIEW' || permLevel === 'COMMENT');
       } else {
         // Not a list member - read-only
@@ -211,34 +228,16 @@ export default function ListView() {
   const groupedTasks = {
     'todo': filteredTasks.filter(t => t.status === 'todo'),
     'inprogress': filteredTasks.filter(t => t.status === 'inprogress'),
+    'review': filteredTasks.filter(t => t.status === 'review'),
     'done': filteredTasks.filter(t => t.status === 'done'),
     'cancelled': filteredTasks.filter(t => t.status === 'cancelled'),
   };
 
   const handleStatusChange = async (taskId: string, newStatus: Task['status']) => {
-    try {
-      const task = tasks.find(t => t._id === taskId);
-      if (!task) return;
+    const task = tasks.find(t => t._id === taskId);
+    if (!task) return;
 
-      // Permission check:
-      // - Owner/Admin: Can always update
-      // - List member with EDIT or FULL: Can update
-      // - Task assignee: Can update their own tasks
-      const assigneeId = typeof task.assignee === 'object' ? task.assignee?._id : task.assignee;
-      const isAssignee = userId === assigneeId;
-      const canUpdateAsListMember = isListMember && (listPermissionLevel === 'EDIT' || listPermissionLevel === 'FULL');
-      const canUpdate = userRole === 'admin' || userRole === 'owner' || canUpdateAsListMember || isAssignee;
-      
-      if (!canUpdate) {
-        toast.error('You do not have permission to update this task');
-        return;
-      }
-
-      await updateTaskStatus(taskId, newStatus, task.title);
-      toast.success('Task status updated');
-    } catch (error) {
-      toast.error('Failed to update task status');
-    }
+    await updateTaskStatus(taskId, newStatus, task.title);
   };
 
   const handlePriorityChange = async (taskId: string, newPriority: Task['priority']) => {
@@ -360,39 +359,6 @@ export default function ListView() {
     }
   };
 
-  const handleAddMembers = async () => {
-    if (selectedMembers.length === 0) {
-      toast.error('Please select at least one member');
-      return;
-    }
-    try {
-      // Add members to list with default EDIT permission level
-      await Promise.all(
-        selectedMembers.map(memberId =>
-          api.post(`/lists/${listId}/list-members`, { 
-            userId: memberId,
-            permissionLevel: 'EDIT' // Default permission level
-          })
-        )
-      );
-      setSelectedMembers([]);
-      setShowInviteModal(false);
-      toast.success(`${selectedMembers.length} member(s) added successfully`);
-      // Refresh list data and members
-      await fetchData();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to add members';
-      toast.error(errorMessage);
-      console.error('Add members error:', error);
-    }
-  };
-
-  const toggleMemberSelection = (memberId: string) => {
-    setSelectedMembers(prev =>
-      prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId]
-    );
-  };
-
   const getInitials = (name: string) => {
     return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
   };
@@ -477,6 +443,16 @@ export default function ListView() {
     return false;
   };
 
+  const canCreateTask = () => {
+    // Owner/Admin: Full access
+    if (userRole === 'owner' || userRole === 'admin') return true;
+    
+    // List member with EDIT or FULL permission can create tasks
+    if (isListMember && (listPermissionLevel === 'EDIT' || listPermissionLevel === 'FULL')) return true;
+    
+    return false;
+  };
+
   if (loading && tasks.length === 0) {
     return <LoadingSkeleton />;
   }
@@ -548,23 +524,29 @@ export default function ListView() {
                 </div>
               </div>
 
-              {/* Invite, Permissions, and Settings buttons for admin/owner only */}
+              {/* Invite and Settings in Actions dropdown for admin/owner only */}
               {(userRole === 'owner' || userRole === 'admin') && !isReadOnly && (
                 <>
-                  <Button variant="outline" onClick={() => setShowInviteModal(true)}>
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Invite
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowListMemberManagement(true)}>
-                    <Users className="w-4 h-4 mr-2" />
-                    Permissions
-                  </Button>
-                  <Sheet open={showSettingsSheet} onOpenChange={setShowSettingsSheet}>
-                    <SheetTrigger asChild>
-                      <Button variant="outline" size="icon">
-                        <Settings className="w-4 h-4" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <MoreHorizontal className="w-4 h-4" />
+                        <span className="ml-2 hidden sm:inline">Actions</span>
                       </Button>
-                    </SheetTrigger>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => setShowListMemberManagement(true)}>
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        Manage List Members
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowSettingsSheet(true)}>
+                        <Settings className="w-4 h-4 mr-2" />
+                        List Settings
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
+                  <Sheet open={showSettingsSheet} onOpenChange={setShowSettingsSheet}>
                     <SheetContent>
                       <SheetHeader>
                         <SheetTitle>List Settings</SheetTitle>
@@ -602,29 +584,16 @@ export default function ListView() {
                     </SheetContent>
                   </Sheet>
                   
-                  {/* Invite Member Modal */}
-                  <InviteMemberModal
-                    open={showInviteModal}
-                    onOpenChange={setShowInviteModal}
-                    spaceColor="#3b82f6"
-                    availableMembers={space?.members?.filter((m: any) => {
-                      const user = typeof m.user === 'object' ? m.user : null;
-                      if (!user) return false;
-                      // Only show regular members (not admins/owners)
-                      return m.role === 'member';
-                    }) || []}
-                    selectedMembers={selectedMembers}
-                    onToggleMemberSelection={toggleMemberSelection}
-                    onAddMembers={handleAddMembers}
-                    searchQuery={searchMemberQuery}
-                    onSearchChange={setSearchMemberQuery}
-                    getInitials={getInitials}
-                  />
-                  
                   {/* List Member Management Modal */}
                   <ListMemberManagement
                     open={showListMemberManagement}
-                    onOpenChange={setShowListMemberManagement}
+                    onOpenChange={(open) => {
+                      setShowListMemberManagement(open);
+                      // Refresh list members when modal closes
+                      if (!open) {
+                        fetchData();
+                      }
+                    }}
                     listId={listId}
                     listName={list?.name || 'List'}
                   />
@@ -632,7 +601,7 @@ export default function ListView() {
               )}
 
               {/* New Task Button */}
-              {!isReadOnly && (
+              {canCreateTask() && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
                     <Button className="bg-blue-600 hover:bg-blue-700">
@@ -696,13 +665,14 @@ export default function ListView() {
                             }
                           >
                             <SelectTrigger>
-                              <SelectValue />
+                              <SelectValue placeholder="Select status" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="to do">To Do</SelectItem>
-                              <SelectItem value="in progress">In Progress</SelectItem>
+                              <SelectItem value="todo">To Do</SelectItem>
+                              <SelectItem value="inprogress">In Progress</SelectItem>
+                              <SelectItem value="review">Review</SelectItem>
                               <SelectItem value="done">Done</SelectItem>
-                              <SelectItem value="blocked">Blocked</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -785,8 +755,6 @@ export default function ListView() {
               <p className="text-sm font-medium">
                 {listPermissionLevel === 'VIEW' 
                   ? 'You have view-only access to this list.'
-                  : listPermissionLevel === 'COMMENT'
-                  ? 'You can view and comment on tasks in this list.'
                   : 'You do not have access to modify this list. Contact an admin to request access.'}
               </p>
             </div>
@@ -798,7 +766,7 @@ export default function ListView() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {view === 'list' && (
           <div className="space-y-6">
-            {(['todo', 'inprogress', 'done', 'cancelled'] as const).map((status) => (
+            {(['todo', 'inprogress', 'review', 'done', 'cancelled'] as const).map((status) => (
               <TaskGroup
                 key={status}
                 status={status}
@@ -821,10 +789,12 @@ export default function ListView() {
         )}
 
         {view === 'board' && (
-          <div className="text-center py-12 text-muted-foreground">
-            <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Board view coming soon</p>
-          </div>
+          <KanbanBoard
+            tasks={filteredTasks}
+            onStatusChange={handleStatusChange}
+            canChangeStatus={canEditTask({ _id: '', title: '', status: 'todo', priority: 'medium' } as Task)}
+            spaceMembers={space?.members || []}
+          />
         )}
 
         {view === 'calendar' && (
@@ -927,6 +897,7 @@ function TaskGroup({
   const statusConfig = {
     'todo': { label: 'To Do', color: 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400' },
     'inprogress': { label: 'In Progress', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+    'review': { label: 'Review', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
     'done': { label: 'Done', color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
     'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' },
   };
@@ -1041,7 +1012,7 @@ function TaskRow({
 
       {/* Priority */}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={isReadOnly || !canEdit}>
+        <DropdownMenuTrigger asChild disabled={!canEdit}>
           <button className={`p-1 hover:bg-accent rounded transition-colors ${priorityConfig[task.priority].color}`}>
             <PriorityIcon className="w-4 h-4" />
           </button>
@@ -1073,7 +1044,7 @@ function TaskRow({
 
       {/* Status Badge */}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={isReadOnly || !canEdit}>
+        <DropdownMenuTrigger asChild disabled={!canEdit}>
           <button>
             <Badge
               className={`cursor-pointer ${
@@ -1086,7 +1057,7 @@ function TaskRow({
                   : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
               }`}
             >
-              {task.status === 'todo' ? 'To Do' : task.status === 'inprogress' ? 'In Progress' : task.status === 'done' ? 'Done' : 'Cancelled'}
+              {task.status === 'todo' ? 'To Do' : task.status === 'inprogress' ? 'In Progress' : task.status === 'review' ? 'Review' : task.status === 'done' ? 'Done' : 'Cancelled'}
             </Badge>
           </button>
         </DropdownMenuTrigger>
@@ -1108,7 +1079,7 @@ function TaskRow({
 
       {/* Assignee */}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={isReadOnly || !canEdit}>
+        <DropdownMenuTrigger asChild disabled={!canEdit}>
           <button className="hover:opacity-80 transition-opacity">
             {assignee ? (
               <Avatar className="w-8 h-8">

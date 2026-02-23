@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/axios';
 import { usePermissions } from '@/store/useAuthStore';
+import { getSocket } from '@/lib/socket';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Loader2,
@@ -59,6 +61,45 @@ export default function MembersPage() {
 
   useEffect(() => {
     fetchMembers();
+  }, [workspaceId]);
+
+  // Socket.IO listeners for real-time member updates
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !workspaceId) return;
+
+    console.log('[Members Page] Setting up socket listeners');
+
+    const handleMemberAdded = (data: any) => {
+      console.log('[Members Page] Member added:', data);
+      if (data.workspaceId === workspaceId) {
+        fetchMembers(); // Refresh members list
+      }
+    };
+
+    const handleMemberRemoved = (data: any) => {
+      console.log('[Members Page] Member removed:', data);
+      if (data.workspaceId === workspaceId) {
+        fetchMembers();
+      }
+    };
+
+    const handleMemberUpdated = (data: any) => {
+      console.log('[Members Page] Member updated:', data);
+      if (data.workspaceId === workspaceId) {
+        fetchMembers();
+      }
+    };
+
+    socket.on('member:added', handleMemberAdded);
+    socket.on('member:removed', handleMemberRemoved);
+    socket.on('member:updated', handleMemberUpdated);
+
+    return () => {
+      socket.off('member:added', handleMemberAdded);
+      socket.off('member:removed', handleMemberRemoved);
+      socket.off('member:updated', handleMemberUpdated);
+    };
   }, [workspaceId]);
 
   const fetchMembers = async () => {
@@ -126,7 +167,7 @@ export default function MembersPage() {
       });
 
       // Show success message
-      alert(`Invitation sent to ${inviteEmail}!`);
+      toast.success(`Invitation sent to ${inviteEmail}!`);
       setInviteEmail('');
       setInviteRole('member');
       setShowInviteModal(false);

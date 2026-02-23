@@ -26,8 +26,8 @@ import { useModalStore } from '@/store/useModalStore';
 import { usePermissions, useWorkspaceContext } from '@/store/useAuthStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useThemeStore, accentColors, getGradientColor } from '@/store/useThemeStore';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { HierarchyItemComponent } from './HierarchyItem';
-import { WorkspaceHierarchy } from '@/types/hierarchy';
 import { CreateItemModal } from '@/components/modals/CreateItemModal';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -44,9 +44,8 @@ export function ClickUpSidebar() {
   const { unreadCount } = useNotificationStore();
   const { accentColor } = useThemeStore();
   
-  const [hierarchy, setHierarchy] = useState<WorkspaceHierarchy | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Use workspace store instead of local state
+  const { hierarchy, loading, error, setHierarchy, setLoading, setError } = useWorkspaceStore();
   const [userName, setUserName] = useState('User');
   const [userEmail, setUserEmail] = useState('user@example.com');
   const [userId, setUserId] = useState<string | null>(null);
@@ -119,29 +118,83 @@ export function ClickUpSidebar() {
       const spacesWithData = await Promise.all(
         spaces.map(async (space: any) => {
           try {
+            console.log(`[ClickUpSidebar] Fetching data for space "${space.name}" (${space._id})`);
+            
+            // Fetch lists
             const listsRes = await api.get(`/spaces/${space._id}/lists`);
-            const lists = listsRes.data.data || listsRes.data || [];
+            const allLists = listsRes.data.data || listsRes.data || [];
+            console.log(`[ClickUpSidebar] Space "${space.name}" - Fetched ${allLists.length} lists`);
+
+            // Fetch folders
+            const foldersRes = await api.get(`/spaces/${space._id}/folders`);
+            const folders = foldersRes.data.data || foldersRes.data || [];
+            console.log(`[ClickUpSidebar] Space "${space.name}" - Fetched ${folders.length} folders`);
+
+            // Separate lists into those with folders and those without
+            const listsWithFolder = new Set<string>();
+            const foldersWithLists = folders.map((folder: any) => {
+              const folderLists = allLists.filter((list: any) => {
+                const listFolderId = typeof list.folder === 'string' ? list.folder : list.folder?._id;
+                if (listFolderId === folder._id) {
+                  listsWithFolder.add(list._id);
+                  return true;
+                }
+                return false;
+              }).map((list: any) => ({
+                ...list,
+                type: 'list',
+              }));
+
+              return {
+                ...folder,
+                type: 'folder',
+                lists: folderLists,
+              };
+            });
+
+            // Lists without folder
+            const listsWithoutFolder = allLists
+              .filter((list: any) => !listsWithFolder.has(list._id))
+              .map((list: any) => ({
+                ...list,
+                type: 'list',
+              }));
+
+            console.log(`[ClickUpSidebar] Space "${space.name}" - ${foldersWithLists.length} folders, ${listsWithoutFolder.length} standalone lists`);
 
             return {
               ...space,
               type: 'space',
-              lists: lists.map((list: any) => ({
-                ...list,
-                type: 'list',
-              })),
-              folders: [],
+              folders: foldersWithLists,
+              listsWithoutFolder: listsWithoutFolder,
             };
           } catch (err) {
-            console.error(`Failed to fetch lists for space ${space._id}:`, err);
+            console.error(`Failed to fetch data for space ${space._id}:`, err);
             return {
               ...space,
               type: 'space',
-              lists: [],
               folders: [],
+              listsWithoutFolder: [],
             };
           }
         })
       );
+
+      console.log('[ClickUpSidebar] ✅ Hierarchy fetched successfully!');
+      console.log('[ClickUpSidebar] Spaces with data:', spacesWithData.map(s => ({
+        name: s.name,
+        folders: s.folders?.length || 0,
+        lists: s.listsWithoutFolder?.length || 0
+      })));
+
+      // Auto-expand all spaces
+      const spaceIds = spacesWithData.map(s => s._id);
+      const { expandedIds } = useUIStore.getState();
+      const newSpaceIds = spaceIds.filter(id => !expandedIds.includes(id));
+      if (newSpaceIds.length > 0) {
+        useUIStore.getState().expandAll(newSpaceIds);
+        console.log('[ClickUpSidebar] Auto-expanded spaces:', newSpaceIds);
+      }
 
       setHierarchy({
         workspaceId: workspace._id,
@@ -176,7 +229,7 @@ export function ClickUpSidebar() {
     .flatMap((space) => [
       space,
       ...(space.folders || []),
-      ...(space.lists || []),
+      ...(space.listsWithoutFolder || []),
     ])
     .filter((item) => favoriteIds.includes(item._id)) || [];
 
@@ -247,14 +300,14 @@ export function ClickUpSidebar() {
             </Link>
             
             <Link
-              href={`/workspace/${workspaceId}/dashboard`}
+              href={`/workspace/${workspaceId}/analytics`}
               className={cn(
                 'flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
-                pathname === `/workspace/${workspaceId}/dashboard`
+                pathname === `/workspace/${workspaceId}/analytics`
                   ? 'bg-white/20 shadow-md'
                   : 'hover:bg-white/10'
               )}
-              title="Dashboard"
+              title="Analytics"
             >
               <BarChart3 
                 className="w-5 h-5" 
@@ -264,7 +317,7 @@ export function ClickUpSidebar() {
                 className="text-[9px] font-medium"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
-                Dash
+                Analytics
               </span>
             </Link>
             
@@ -456,6 +509,7 @@ export function ClickUpSidebar() {
                           item={space}
                           level={0}
                           workspaceId={workspaceId}
+                          parentSpaceId={space._id}
                         />
                       ))}
                     </div>

@@ -15,7 +15,7 @@ interface TaskStore {
   bulkUpdateTasks: (taskIds: string[], data: Partial<Task>) => Promise<void>;
   bulkDeleteTasks: (taskIds: string[]) => Promise<void>;
   assignTask: (taskId: string, userId: string | null, taskName: string, assigneeName: string) => Promise<Task>;
-  updateTaskStatus: (taskId: string, status: 'todo' | 'inprogress' | 'done' | 'cancelled', taskName: string) => Promise<Task>;
+  updateTaskStatus: (taskId: string, status: 'todo' | 'inprogress' | 'review' | 'done' | 'cancelled', taskName: string) => Promise<Task>;
   setTasks: (tasks: Task[]) => void;
   clearTasks: () => void;
 }
@@ -116,20 +116,24 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         )
       });
 
-      // Log activity
-      const { logActivity } = await import('./useActivityStore');
-      const currentUserId = localStorage.getItem('userId');
-      if (currentUserId) {
-        await logActivity({
-          userId: currentUserId,
-          action: userId ? `assigned task to ${assigneeName}` : 'unassigned task',
-          target: taskName,
-          type: 'update',
-          workspaceId: updatedTask.workspace,
-          spaceId: updatedTask.space,
-          listId: updatedTask.list,
-          taskId: updatedTask._id
-        });
+      // Log activity - wrapped in try-catch to prevent blocking
+      try {
+        const { logActivity } = await import('./useActivityStore');
+        const currentUserId = localStorage.getItem('userId');
+        if (currentUserId) {
+          await logActivity({
+            userId: currentUserId,
+            action: userId ? `assigned task to ${assigneeName}` : 'unassigned task',
+            target: taskName,
+            type: 'update',
+            workspaceId: updatedTask.workspace,
+            spaceId: updatedTask.space,
+            listId: updatedTask.list,
+            taskId: updatedTask._id
+          });
+        }
+      } catch (activityError) {
+        console.error('Failed to log activity:', activityError);
       }
 
       return updatedTask;
@@ -139,7 +143,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     }
   },
 
-  updateTaskStatus: async (taskId: string, status: 'todo' | 'inprogress' | 'done' | 'cancelled', taskName: string) => {
+  updateTaskStatus: async (taskId: string, status: 'todo' | 'inprogress' | 'review' | 'done' | 'cancelled', taskName: string) => {
+    // Optimistic update - update UI immediately
+    const previousTasks = get().tasks;
+    set({
+      tasks: get().tasks.map(task =>
+        task._id === taskId ? { ...task, status } : task
+      )
+    });
+
     try {
       const response = await api.patch(`/tasks/${taskId}`, { status });
       const updatedTask = response.data.data;
@@ -150,25 +162,33 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         )
       });
 
-      // Log activity
-      const { logActivity } = await import('./useActivityStore');
-      const currentUserId = localStorage.getItem('userId');
-      if (currentUserId) {
-        await logActivity({
-          userId: currentUserId,
-          action: `changed status to ${status}`,
-          target: taskName,
-          type: 'update',
-          workspaceId: updatedTask.workspace,
-          spaceId: updatedTask.space,
-          listId: updatedTask.list,
-          taskId: updatedTask._id
-        });
+      // Log activity - wrapped in try-catch to prevent blocking
+      try {
+        const { logActivity } = await import('./useActivityStore');
+        const currentUserId = localStorage.getItem('userId');
+        if (currentUserId) {
+          await logActivity({
+            userId: currentUserId,
+            action: `changed status to ${status}`,
+            target: taskName,
+            type: 'update',
+            workspaceId: updatedTask.workspace,
+            spaceId: updatedTask.space,
+            listId: updatedTask.list,
+            taskId: updatedTask._id
+          });
+        }
+      } catch (activityError) {
+        console.error('Failed to log activity:', activityError);
       }
 
       return updatedTask;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to update task status' });
+      // Revert optimistic update on error
+      set({ 
+        tasks: previousTasks,
+        error: error.response?.data?.message || 'Failed to update task status' 
+      });
       throw error;
     }
   },

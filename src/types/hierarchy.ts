@@ -6,8 +6,9 @@ export interface HierarchyList {
   type: 'list';
   space: string;
   workspace: string;
-  createdAt: string;
-  updatedAt: string;
+  folder?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface HierarchyFolder {
@@ -15,9 +16,9 @@ export interface HierarchyFolder {
   name: string;
   type: 'folder';
   space: string;
-  lists?: HierarchyList[];
-  createdAt: string;
-  updatedAt: string;
+  lists: HierarchyList[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface HierarchySpace {
@@ -25,10 +26,11 @@ export interface HierarchySpace {
   name: string;
   type: 'space';
   workspace: string;
-  folders?: HierarchyFolder[];
-  lists?: HierarchyList[];
-  createdAt: string;
-  updatedAt: string;
+  folders: HierarchyFolder[];
+  listsWithoutFolder: HierarchyList[];
+  members?: any[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type HierarchyItem = HierarchySpace | HierarchyFolder | HierarchyList;

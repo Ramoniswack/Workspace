@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from '@/store/useAuthStore';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { toast } from 'sonner';
 import { ConfirmModal } from '@/components/ConfirmModal';
 
@@ -39,12 +40,14 @@ export default function WorkspacePage() {
   const workspaceId = params.id as string;
   const { socket, isConnected, onlineUsers } = useSocket();
   const { setWorkspaceContext } = useAuthStore();
+  const { hierarchy, setHierarchy, addSpace } = useWorkspaceStore();
   
   // Get userId from localStorage since it's not in the auth store
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [spaces, setSpaces] = useState<Space[]>([]);
+  // Use spaces from workspace store hierarchy
+  const spaces = hierarchy?.spaces || [];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -180,11 +183,63 @@ export default function WorkspacePage() {
       console.log('Workspace members:', workspaceRes.data.data.members);
       console.log('Current userId from store:', userId);
       
-      setWorkspace(workspaceRes.data.data);
-      setSpaces(spacesRes.data.data);
+      const workspaceData = workspaceRes.data.data;
+      const spacesData = spacesRes.data.data;
+      
+      setWorkspace(workspaceData);
+      
+      // Update workspace store with hierarchy
+      const spacesWithData = await Promise.all(
+        spacesData.map(async (space: any) => {
+          try {
+            const listsRes = await api.get(`/spaces/${space._id}/lists`);
+            const allLists = listsRes.data.data || [];
+            
+            const foldersRes = await api.get(`/spaces/${space._id}/folders`);
+            const folders = foldersRes.data.data || [];
+            
+            const listsWithFolder = new Set<string>();
+            const foldersWithLists = folders.map((folder: any) => {
+              const folderLists = allLists.filter((list: any) => {
+                const listFolderId = typeof list.folder === 'string' ? list.folder : list.folder?._id;
+                if (listFolderId === folder._id) {
+                  listsWithFolder.add(list._id);
+                  return true;
+                }
+                return false;
+              }).map((list: any) => ({ ...list, type: 'list' }));
+              
+              return { ...folder, type: 'folder', lists: folderLists };
+            });
+            
+            const listsWithoutFolder = allLists
+              .filter((list: any) => !listsWithFolder.has(list._id))
+              .map((list: any) => ({ ...list, type: 'list' }));
+            
+            return {
+              ...space,
+              type: 'space',
+              folders: foldersWithLists,
+              listsWithoutFolder: listsWithoutFolder,
+            };
+          } catch (err) {
+            return {
+              ...space,
+              type: 'space',
+              folders: [],
+              listsWithoutFolder: [],
+            };
+          }
+        })
+      );
+      
+      setHierarchy({
+        workspaceId: workspaceData._id,
+        workspaceName: workspaceData.name,
+        spaces: spacesWithData,
+      });
 
       // Set workspace context for permission system
-      const workspaceData = workspaceRes.data.data;
       const workspaceOwnerId = typeof workspaceData.owner === 'string' ? workspaceData.owner : workspaceData.owner?._id;
       const isOwner = workspaceOwnerId === userId;
       const workspaceMember = workspaceData.members.find((m: any) => {
@@ -218,7 +273,59 @@ export default function WorkspacePage() {
   const fetchSpaces = async () => {
     try {
       const response = await api.get(`/workspaces/${workspaceId}/spaces`);
-      setSpaces(response.data.data);
+      const spacesData = response.data.data;
+      
+      // Update workspace store with new spaces
+      const spacesWithData = await Promise.all(
+        spacesData.map(async (space: any) => {
+          try {
+            const listsRes = await api.get(`/spaces/${space._id}/lists`);
+            const allLists = listsRes.data.data || [];
+            
+            const foldersRes = await api.get(`/spaces/${space._id}/folders`);
+            const folders = foldersRes.data.data || [];
+            
+            const listsWithFolder = new Set<string>();
+            const foldersWithLists = folders.map((folder: any) => {
+              const folderLists = allLists.filter((list: any) => {
+                const listFolderId = typeof list.folder === 'string' ? list.folder : list.folder?._id;
+                if (listFolderId === folder._id) {
+                  listsWithFolder.add(list._id);
+                  return true;
+                }
+                return false;
+              }).map((list: any) => ({ ...list, type: 'list' }));
+              
+              return { ...folder, type: 'folder', lists: folderLists };
+            });
+            
+            const listsWithoutFolder = allLists
+              .filter((list: any) => !listsWithFolder.has(list._id))
+              .map((list: any) => ({ ...list, type: 'list' }));
+            
+            return {
+              ...space,
+              type: 'space',
+              folders: foldersWithLists,
+              listsWithoutFolder: listsWithoutFolder,
+            };
+          } catch (err) {
+            return {
+              ...space,
+              type: 'space',
+              folders: [],
+              listsWithoutFolder: [],
+            };
+          }
+        })
+      );
+      
+      if (hierarchy) {
+        setHierarchy({
+          ...hierarchy,
+          spaces: spacesWithData,
+        });
+      }
     } catch (error: any) {
       console.error('Failed to fetch spaces:', error);
     }
@@ -237,7 +344,16 @@ export default function WorkspacePage() {
         description: newSpaceDescription.trim()
       });
       
-      setSpaces([...spaces, response.data.data]);
+      const newSpace = response.data.data;
+      
+      // Add to workspace store instantly
+      addSpace({
+        ...newSpace,
+        type: 'space',
+        folders: [],
+        listsWithoutFolder: [],
+      });
+      
       setNewSpaceName('');
       setNewSpaceDescription('');
       setShowCreateModal(false);
@@ -271,10 +387,15 @@ export default function WorkspacePage() {
       const response = await api.patch(`/spaces/${spaceId}`, { status: newStatus });
       console.log('Status toggle response:', response.data);
       
-      // Update local state
-      setSpaces(spaces.map(s => 
-        s._id === spaceId ? { ...s, status: newStatus } : s
-      ));
+      // Update workspace store
+      if (hierarchy) {
+        setHierarchy({
+          ...hierarchy,
+          spaces: hierarchy.spaces.map(s => 
+            s._id === spaceId ? { ...s, status: newStatus } : s
+          ),
+        });
+      }
       
       // Emit socket event for real-time updates
       if (socket) {
@@ -655,18 +776,9 @@ export default function WorkspacePage() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-              {spaces
-                .filter((space) => {
-                  // Admin and owner can see all spaces
-                  if (isOwnerOrAdmin()) return true;
-                  
-                  // Regular members can only see spaces they're part of
-                  const spaceMemberIds = space.members?.map((m: any) => 
-                    typeof m.user === 'string' ? m.user : m.user?._id
-                  ) || [];
-                  return spaceMemberIds.includes(userId);
-                })
-                .map((space, index) => {
+              {/* Backend already filters spaces based on access (space member OR list member) */}
+              {/* No need for client-side filtering - trust the backend! */}
+              {spaces.map((space, index) => {
                 const SpaceIcon = getSpaceIcon(space.name);
                 const userRole = getUserRoleInSpace(space);
                 const canManage = userRole === 'owner' || userRole === 'admin';
@@ -769,26 +881,8 @@ export default function WorkspacePage() {
                   </CardContent>
                 </Card>
               )}
-              
-              {/* No Spaces Message for Members */}
-              {!isOwnerOrAdmin() && spaces.filter((space) => {
-                const spaceMemberIds = space.members?.map((m: any) => 
-                  typeof m.user === 'string' ? m.user : m.user?._id
-                ) || [];
-                return spaceMemberIds.includes(userId);
-              }).length === 0 && (
-                <Card className="border-2 border-dashed col-span-full">
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                      <Users className="w-8 h-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-medium mb-2">No Spaces Assigned</h3>
-                    <p className="text-sm text-muted-foreground text-center max-w-md">
-                      You haven't been added to any spaces yet. Please contact your workspace admin or owner to request access to spaces.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+              {/* This section is no longer needed - backend already filters spaces correctly */}
+              {/* If user has list access, they'll see the space above */}
             </div>
           )}
         </div>

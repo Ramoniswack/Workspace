@@ -32,15 +32,61 @@ export default function NotificationsPage() {
     markAllAsRead,
     removeNotification,
     requestPermission,
+    syncPermission,
   } = useNotificationStore();
 
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [accepting, setAccepting] = useState<string | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
+    // Sync permission state with browser
+    syncPermission();
+    
     fetchNotifications();
+    
+    // Check permission and set banner visibility
+    const checkPermission = () => {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        const currentPermission = Notification.permission;
+        console.log('🔔 [NOTIFICATION CHECK]');
+        console.log('🔔 Browser Notification.permission:', currentPermission);
+        console.log('🔔 Store permission:', permission);
+        console.log('🔔 Should show banner:', currentPermission !== 'granted');
+        console.log('🔔 Banner state will be set to:', currentPermission !== 'granted');
+        
+        // Always show banner if permission is not granted
+        const shouldShow = currentPermission !== 'granted';
+        setShowBanner(shouldShow);
+        
+        console.log('🔔 Banner visibility set to:', shouldShow);
+      } else {
+        console.log('❌ Notifications not supported or window not available');
+      }
+    };
+    
+    checkPermission();
+    
+    // Debug: Log permission status
+    console.log('🔔 Initial notification permission status:', permission);
   }, []);
+
+  useEffect(() => {
+    // Update banner when permission changes
+    console.log('🔔 [PERMISSION CHANGED]');
+    console.log('🔔 New permission value:', permission);
+    
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const currentPermission = Notification.permission;
+      const shouldShow = currentPermission !== 'granted';
+      
+      console.log('🔔 Browser permission:', currentPermission);
+      console.log('🔔 Setting banner to:', shouldShow);
+      
+      setShowBanner(shouldShow);
+    }
+  }, [permission]);
 
   const fetchNotifications = async () => {
     try {
@@ -99,11 +145,34 @@ export default function NotificationsPage() {
   };
 
   const handleEnableNotifications = async () => {
-    const result = await requestPermission();
-    if (result === 'granted') {
-      alert('Browser notifications enabled!');
-    } else {
-      alert('Please enable notifications in your browser settings.');
+    try {
+      console.log('🔔 Requesting notification permission...');
+      
+      // First, request basic browser notification permission
+      if (!('Notification' in window)) {
+        alert('This browser does not support notifications');
+        return;
+      }
+
+      console.log('🔔 Current permission:', Notification.permission);
+      
+      const result = await requestPermission();
+      console.log('🔔 Permission result:', result);
+      
+      if (result === 'granted') {
+        setShowBanner(false);
+        console.log('✅ Notification permission granted!');
+        alert('Browser notifications enabled! You will now receive notifications.');
+      } else if (result === 'denied') {
+        console.log('❌ Notification permission denied');
+        alert('Notification permission was denied. Please enable it in your browser settings.');
+      } else {
+        console.log('⚠️ Notification permission dismissed');
+        alert('Please allow notifications to receive updates.');
+      }
+    } catch (error) {
+      console.error('❌ Error requesting permission:', error);
+      alert('Failed to enable notifications. Please check browser console for details.');
     }
   };
 
@@ -233,8 +302,29 @@ export default function NotificationsPage() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Debug Info - Remove this after testing */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mb-4 p-3 bg-gray-100 dark:bg-[#262626] rounded-lg text-xs font-mono">
+            <div className="text-gray-700 dark:text-slate-300">
+              <strong>Debug Info:</strong>
+            </div>
+            <div className="text-gray-600 dark:text-slate-400">
+              Browser Permission: {typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'N/A'}
+            </div>
+            <div className="text-gray-600 dark:text-slate-400">
+              Store Permission: {permission}
+            </div>
+            <div className="text-gray-600 dark:text-slate-400">
+              Show Banner: {showBanner ? 'Yes' : 'No'}
+            </div>
+            <div className="text-gray-600 dark:text-slate-400">
+              Banner Should Show: {typeof window !== 'undefined' && 'Notification' in window ? (Notification.permission !== 'granted' ? 'Yes' : 'No') : 'N/A'}
+            </div>
+          </div>
+        )}
+
         {/* Browser Notification Permission */}
-        {permission !== 'granted' && (
+        {showBanner && (
           <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -243,7 +333,7 @@ export default function NotificationsPage() {
                   Enable Desktop Notifications
                 </h3>
                 <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
-                  Get notified even when TaskFlow is in the background
+                  Get notified even when TaskHub is in the background
                 </p>
                 <button
                   onClick={handleEnableNotifications}
