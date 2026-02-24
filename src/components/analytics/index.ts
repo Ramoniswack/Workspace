@@ -6,3 +6,5 @@ export { PriorityDistribution } from './PriorityDistribution';
 export { TeamPerformanceTable } from './TeamPerformanceTable';
 export { ClockInOut } from './ClockInOut';
 export { YourTasks } from './YourTasks';
+export { Announcements } from './Announcements';
+export { StickyNotes } from './StickyNotes';

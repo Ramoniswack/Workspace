@@ -4,7 +4,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
 import {
-  Home,
   Inbox,
   Bell,
   Settings,
@@ -37,7 +36,7 @@ import { api } from '@/lib/axios';
 export function ClickUpSidebar() {
   const pathname = usePathname();
   const params = useParams();
-  const { favoriteIds } = useUIStore();
+  const { favoriteIds, isSidebarOpen } = useUIStore();
   const { openModal, setOnSuccess } = useModalStore();
   const { can } = usePermissions();
   const { setWorkspaceContext } = useWorkspaceContext();
@@ -297,7 +296,10 @@ export function ClickUpSidebar() {
     <>
       <CreateItemModal />
 
-      <div className="flex h-screen">
+      <div className={cn(
+        "flex h-screen transition-all duration-300",
+        !isSidebarOpen && "w-0 overflow-hidden"
+      )}>
         {/* Left Icon Bar - Accent Color with Gradient - REDUCED WIDTH */}
         <div
           className="w-[60px] flex flex-col items-center py-4 transition-colors duration-300"
@@ -321,28 +323,6 @@ export function ClickUpSidebar() {
           {/* Primary Navigation */}
           <div className="flex-1 flex flex-col gap-2 w-full px-2">
             <Link
-              href={`/workspace/${workspaceId}`}
-              className={cn(
-                'flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
-                pathname === `/workspace/${workspaceId}`
-                  ? 'bg-white/20 shadow-md'
-                  : 'hover:bg-white/10'
-              )}
-              title="Home"
-            >
-              <Home
-                className="w-5 h-5"
-                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
-              />
-              <span
-                className="text-[9px] font-medium"
-                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
-              >
-                Home
-              </span>
-            </Link>
-
-            <Link
               href={`/workspace/${workspaceId}/analytics`}
               className={cn(
                 'flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
@@ -350,7 +330,7 @@ export function ClickUpSidebar() {
                   ? 'bg-white/20 shadow-md'
                   : 'hover:bg-white/10'
               )}
-              title="Analytics"
+              title="Dashboard"
             >
               <BarChart3
                 className="w-5 h-5"
@@ -360,7 +340,29 @@ export function ClickUpSidebar() {
                 className="text-[9px] font-medium"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
-                Analytics
+                Dashboard
+              </span>
+            </Link>
+
+            <Link
+              href={`/workspace/${workspaceId}/settings/members`}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-all duration-200',
+                pathname === `/workspace/${workspaceId}/settings/members`
+                  ? 'bg-white/20 shadow-md'
+                  : 'hover:bg-white/10'
+              )}
+              title="Members"
+            >
+              <Users
+                className="w-5 h-5"
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              />
+              <span
+                className="text-[9px] font-medium"
+                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+              >
+                Members
               </span>
             </Link>
 
@@ -386,7 +388,7 @@ export function ClickUpSidebar() {
             <button
               onClick={handleInvite}
               className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
-              title="Workspace Members"
+              title="Invite to Workspace"
             >
               <UserPlus
                 className="w-5 h-5"
@@ -396,7 +398,7 @@ export function ClickUpSidebar() {
                 className="text-[9px] font-medium text-center"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
-                Members
+                Invite
               </span>
             </button>
           </div>

@@ -19,6 +19,8 @@ import {
     TeamPerformanceTable,
     ClockInOut,
     YourTasks,
+    Announcements,
+    StickyNotes,
 } from '@/components/analytics';
 import { Task } from '@/types';
 
@@ -29,12 +31,14 @@ export default function AnalyticsPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [spaces, setSpaces] = useState<any[]>([]);
     const [members, setMembers] = useState<any[]>([]);
+    const [workspace, setWorkspace] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFilter] = useState('30'); // days
     const [userId, setUserId] = useState<string>('');
     const [userStatus, setUserStatus] = useState<'active' | 'inactive'>('inactive');
     const [runningTimer, setRunningTimer] = useState<any>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         // Get userId from localStorage
@@ -47,17 +51,65 @@ export default function AnalyticsPage() {
 
     const fetchAnalyticsData = async () => {
         try {
+            setLoading(true);
 
-            // Use the new analytics endpoint for super fast loading
-            const response = await api.get(`/workspaces/${workspaceId}/analytics`);
-            const { members: membersData, currentRunningTimer } = response.data.data;
+            // Fetch analytics, spaces, and workspace data
+            const [analyticsRes, spacesRes, workspaceRes] = await Promise.all([
+                api.get(`/workspaces/${workspaceId}/analytics`),
+                api.get(`/workspaces/${workspaceId}/spaces`),
+                api.get(`/workspaces/${workspaceId}`),
+            ]);
+
+            const { members: membersData, currentRunningTimer } = analyticsRes.data.data;
+            const spacesData = spacesRes.data.data || [];
+            const workspaceData = workspaceRes.data.data;
+
             setMembers(membersData);
             setRunningTimer(currentRunningTimer);
+            setSpaces(spacesData);
+            setWorkspace(workspaceData);
+
+            // Determine if user is admin
+            const storedUserId = localStorage.getItem('userId');
+            if (storedUserId && workspaceData) {
+                const isOwner = workspaceData.owner?._id === storedUserId || workspaceData.owner === storedUserId;
+                const member = workspaceData.members?.find((m: any) => {
+                    const memberId = typeof m.user === 'string' ? m.user : m.user?._id;
+                    return memberId === storedUserId;
+                });
+                const isMemberAdmin = member && (member.role === 'admin' || member.role === 'owner');
+                setIsAdmin(isOwner || isMemberAdmin);
+            }
+
+            // Fetch all tasks from all spaces in this workspace
+            const allTasks: Task[] = [];
+            for (const space of spacesData) {
+                try {
+                    // Get all lists in this space
+                    const listsRes = await api.get(`/spaces/${space._id}/lists`);
+                    const lists = listsRes.data.data || [];
+                    
+                    // Get tasks from each list
+                    for (const list of lists) {
+                        try {
+                            const tasksRes = await api.get(`/lists/${list._id}/tasks`);
+                            const listTasks = tasksRes.data.data || [];
+                            allTasks.push(...listTasks);
+                        } catch (err) {
+                            console.error(`Failed to fetch tasks for list ${list._id}:`, err);
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Failed to fetch lists for space ${space._id}:`, err);
+                }
+            }
+
+            setTasks(allTasks);
 
             // Get current user's status
             const currentMember = membersData.find((m: any) => {
                 const mId = m.user._id || m.user;
-                return mId === userId;
+                return mId === storedUserId;
             });
             setUserStatus(currentMember?.status || 'inactive');
 
@@ -121,10 +173,6 @@ export default function AnalyticsPage() {
             <main className="max-w-[1440px] mx-auto px-6 py-8">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-                    <div>
-                        <h2 className="text-3xl font-extrabold mb-1">Analytics Overview</h2>
-                        <p className="text-muted-foreground">Real-time performance and team productivity metrics.</p>
-                    </div>
                     <div className="flex items-center gap-3">
                         <Button variant="outline" className="gap-2">
                             <Calendar className="w-4 h-4" />
@@ -210,9 +258,8 @@ export default function AnalyticsPage() {
                         runningTimer={runningTimer}
                         onStatusChange={fetchAnalyticsData}
                     />
-                    <div className="lg:col-span-2">
-                        <CompletionTrendChart tasks={tasks} />
-                    </div>
+                    <TaskStatusChart stats={statusStats} totalTasks={metrics.totalTasks} />
+                    <PriorityDistribution stats={priorityStats} />
                 </div>
 
                 {/* Your Tasks and Team Availability */}
@@ -223,11 +270,18 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
 
-                {/* Project Health and Distribution */}
+                {/* Project Health and Completion Trend */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <ProjectHealth spaces={spaces} tasks={tasks} />
-                    <TaskStatusChart stats={statusStats} totalTasks={metrics.totalTasks} />
-                    <PriorityDistribution stats={priorityStats} />
+                    <div className="lg:col-span-2">
+                        <CompletionTrendChart tasks={tasks} />
+                    </div>
+                </div>
+
+                {/* Announcements and Sticky Notes */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <Announcements workspaceId={workspaceId} isAdmin={isAdmin} />
+                    <StickyNotes workspaceId={workspaceId} userId={userId} />
                 </div>
 
                 {/* Team Performance Table */}

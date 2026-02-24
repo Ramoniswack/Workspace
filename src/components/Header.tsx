@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, HelpCircle, Palette, User, LogOut, Building2, Keyboard } from 'lucide-react';
+import { Settings, HelpCircle, Palette, User, LogOut, Building2, Keyboard, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/store/useUIStore';
 import { SearchButton } from '@/components/search/SearchButton';
@@ -55,6 +55,17 @@ export function Header() {
         <div className="flex items-center gap-2 sm:gap-4">
           {/* Mobile Menu Button */}
           <MobileSidebar />
+          
+          {/* Desktop Sidebar Toggle - Hidden on mobile */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:flex h-9 w-9 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#262626]"
+            onClick={toggleSidebar}
+            title="Toggle Sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
           
           <div className="flex items-center gap-2">
             <h1 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">Tasks</h1>
