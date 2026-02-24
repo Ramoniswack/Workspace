@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/axios';
 import {
@@ -21,6 +21,7 @@ import {
     YourTasks,
     Announcements,
     StickyNotes,
+    WorkspaceActivity,
 } from '@/components/analytics';
 import { Task } from '@/types';
 
@@ -33,29 +34,25 @@ export default function AnalyticsPage() {
     const [members, setMembers] = useState<any[]>([]);
     const [workspace, setWorkspace] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [dateFilter] = useState('30'); // days
     const [userId, setUserId] = useState<string>('');
     const [userStatus, setUserStatus] = useState<'active' | 'inactive'>('inactive');
     const [runningTimer, setRunningTimer] = useState<any>(null);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [dateFilter] = useState('30'); 
 
-    useEffect(() => {
-        // Get userId from localStorage
-        const storedUserId = localStorage.getItem('userId');
-        if (storedUserId) {
-            setUserId(storedUserId);
-        }
-        fetchAnalyticsData();
-    }, [workspaceId]);
-
-    const fetchAnalyticsData = async () => {
+    // Define fetch function with useCallback so it can be passed to children safely
+    const fetchAnalyticsData = useCallback(async () => {
         try {
-            setLoading(true);
+            // We only show the full-page loader on the very first load
+            // Subsequent refreshes (from ClockInOut) happen in the background
+            
+            const localUserId = localStorage.getItem('userId') || '';
+            if (localUserId) setUserId(localUserId);
 
-            // Fetch analytics, spaces, and workspace data
+            // Fetch core analytics and workspace data
+            // Added a timestamp to the URL to prevent browser caching of the status
             const [analyticsRes, spacesRes, workspaceRes] = await Promise.all([
-                api.get(`/workspaces/${workspaceId}/analytics`),
+                api.get(`/workspaces/${workspaceId}/analytics?t=${Date.now()}`),
                 api.get(`/workspaces/${workspaceId}/spaces`),
                 api.get(`/workspaces/${workspaceId}`),
             ]);
@@ -64,68 +61,64 @@ export default function AnalyticsPage() {
             const spacesData = spacesRes.data.data || [];
             const workspaceData = workspaceRes.data.data;
 
+            // FIX 1: Removed the spread operator (...) because setMembers expects an array, not individual objects
             setMembers(membersData);
             setRunningTimer(currentRunningTimer);
             setSpaces(spacesData);
             setWorkspace(workspaceData);
 
-            // Determine if user is admin
-            const storedUserId = localStorage.getItem('userId');
-            if (storedUserId && workspaceData) {
-                const isOwner = workspaceData.owner?._id === storedUserId || workspaceData.owner === storedUserId;
-                const member = workspaceData.members?.find((m: any) => {
-                    const memberId = typeof m.user === 'string' ? m.user : m.user?._id;
-                    return memberId === storedUserId;
+            // FIX 2: Correctly determine current user's status and admin role
+            if (localUserId) {
+                // Determine Status
+                const currentMember = membersData.find((m: any) => {
+                    const mId = typeof m.user === 'string' ? m.user : m.user?._id;
+                    return mId === localUserId;
                 });
-                const isMemberAdmin = member && (member.role === 'admin' || member.role === 'owner');
-                setIsAdmin(isOwner || isMemberAdmin);
-            }
+                setUserStatus(currentMember?.status || 'inactive');
 
-            // Fetch all tasks from all spaces in this workspace
-            const allTasks: Task[] = [];
-            for (const space of spacesData) {
-                try {
-                    // Get all lists in this space
-                    const listsRes = await api.get(`/spaces/${space._id}/lists`);
-                    const lists = listsRes.data.data || [];
-                    
-                    // Get tasks from each list
-                    for (const list of lists) {
-                        try {
-                            const tasksRes = await api.get(`/lists/${list._id}/tasks`);
-                            const listTasks = tasksRes.data.data || [];
-                            allTasks.push(...listTasks);
-                        } catch (err) {
-                            console.error(`Failed to fetch tasks for list ${list._id}:`, err);
-                        }
-                    }
-                } catch (err) {
-                    console.error(`Failed to fetch lists for space ${space._id}:`, err);
+                // Determine Admin Privileges
+                if (workspaceData) {
+                    const isOwner = workspaceData.owner?._id === localUserId || workspaceData.owner === localUserId;
+                    const memberRecord = workspaceData.members?.find((m: any) => {
+                        const mId = typeof m.user === 'string' ? m.user : m.user?._id;
+                        return mId === localUserId;
+                    });
+                    const isMemberAdmin = memberRecord && (memberRecord.role === 'admin' || memberRecord.role === 'owner');
+                    setIsAdmin(isOwner || !!isMemberAdmin);
                 }
             }
 
+            // Fetch Tasks logic
+            const allTasks: Task[] = [];
+            for (const space of spacesData) {
+                try {
+                    const listsRes = await api.get(`/spaces/${space._id}/lists`);
+                    const lists = listsRes.data.data || [];
+                    for (const list of lists) {
+                        const tasksRes = await api.get(`/lists/${list._id}/tasks`);
+                        allTasks.push(...(tasksRes.data.data || []));
+                    }
+                } catch (err) {
+                    console.error(`Error fetching tasks for space ${space._id}`, err);
+                }
+            }
             setTasks(allTasks);
-
-            // Get current user's status
-            const currentMember = membersData.find((m: any) => {
-                const mId = m.user._id || m.user;
-                return mId === storedUserId;
-            });
-            setUserStatus(currentMember?.status || 'inactive');
 
         } catch (error) {
             console.error('Failed to fetch analytics data:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [workspaceId]);
 
-    // Calculate metrics
+    useEffect(() => {
+        fetchAnalyticsData();
+    }, [fetchAnalyticsData]);
+
+    // Metrics calculation logic remains same but uses fixed 'members' state
     const metrics = useMemo(() => {
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'done').length;
-        const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-        const activeProjects = spaces.filter(s => s.status === 'active').length;
         const clockedInMembers = members.filter(m => m.status === 'active').length;
 
         return {
@@ -133,37 +126,29 @@ export default function AnalyticsPage() {
             clockedIn: clockedInMembers,
             totalTasks,
             completedTasks,
-            completionRate: completionRate.toFixed(1),
-            activeProjects,
+            completionRate: totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : "0",
+            activeProjects: spaces.filter(s => s.status === 'active').length,
         };
     }, [tasks, spaces, members]);
 
-    // Priority distribution
-    const priorityStats = useMemo(() => {
-        const high = tasks.filter(t => t.priority === 'high' || t.priority === 'urgent').length;
-        const medium = tasks.filter(t => t.priority === 'medium').length;
-        const low = tasks.filter(t => t.priority === 'low').length;
+    const statusStats = useMemo(() => ({
+        todo: tasks.filter(t => t.status === 'todo').length,
+        inprogress: tasks.filter(t => t.status === 'inprogress').length,
+        review: tasks.filter(t => t.status === 'review').length,
+        done: tasks.filter(t => t.status === 'done').length,
+    }), [tasks]);
 
-        return { high, medium, low };
-    }, [tasks]);
-
-    // Task status distribution
-    const statusStats = useMemo(() => {
-        return {
-            todo: tasks.filter(t => t.status === 'todo').length,
-            inprogress: tasks.filter(t => t.status === 'inprogress').length,
-            review: tasks.filter(t => t.status === 'review').length,
-            done: tasks.filter(t => t.status === 'done').length,
-        };
-    }, [tasks]);
+    const priorityStats = useMemo(() => ({
+        high: tasks.filter(t => t.priority === 'high' || t.priority === 'urgent').length,
+        medium: tasks.filter(t => t.priority === 'medium').length,
+        low: tasks.filter(t => t.priority === 'low').length,
+    }), [tasks]);
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <BarChart3 className="w-12 h-12 animate-pulse text-primary mx-auto mb-4" />
-                    <p className="text-muted-foreground">Loading analytics...</p>
-                </div>
+                <BarChart3 className="w-12 h-12 animate-pulse text-primary mr-2" />
+                <p className="text-muted-foreground">Loading dashboard...</p>
             </div>
         );
     }
@@ -171,86 +156,27 @@ export default function AnalyticsPage() {
     return (
         <div className="min-h-screen bg-background">
             <main className="max-w-[1440px] mx-auto px-6 py-8">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-                    <div className="flex items-center gap-3">
-                        <Button variant="outline" className="gap-2">
-                            <Calendar className="w-4 h-4" />
-                            Last {dateFilter} Days
-                        </Button>
-                        <Button className="gap-2 bg-primary hover:bg-primary/90">
-                            <Download className="w-4 h-4" />
-                            Download Report
-                        </Button>
-                    </div>
+                {/* Header Actions */}
+                <div className="flex justify-end gap-3 mb-8">
+                    <Button variant="outline" className="gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Last {dateFilter} Days
+                    </Button>
+                    <Button className="gap-2">
+                        <Download className="w-4 h-4" />
+                        Download Report
+                    </Button>
                 </div>
 
-                {/* Summary Metrics */}
+                {/* Metrics Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex justify-between items-start mb-4">
-                                <span className="text-muted-foreground font-medium text-sm">Total Team</span>
-                                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg">
-                                    <Users className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <h3 className="text-2xl font-bold">{metrics.totalTeam}</h3>
-                                <Badge className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20">
-                                    +{metrics.clockedIn} Clocked in
-                                </Badge>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex justify-between items-start mb-4">
-                                <span className="text-muted-foreground font-medium text-sm">Total Tasks</span>
-                                <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                                    <CheckCircle2 className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <h3 className="text-2xl font-bold">{metrics.totalTasks}</h3>
-                                <span className="text-xs font-semibold text-emerald-500">
-                                    {metrics.completedTasks} done
-                                </span>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex justify-between items-start mb-4">
-                                <span className="text-muted-foreground font-medium text-sm">Completion Rate</span>
-                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-lg">
-                                    <TrendingUp className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <h3 className="text-2xl font-bold">{metrics.completionRate}%</h3>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex justify-between items-start mb-4">
-                                <span className="text-muted-foreground font-medium text-sm">Active Projects</span>
-                                <div className="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-lg">
-                                    <Rocket className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <h3 className="text-2xl font-bold">{metrics.activeProjects}</h3>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <MetricCard title="Total Team" value={metrics.totalTeam} icon={<Users className="w-5 h-5"/>} color="blue" badge={`+${metrics.clockedIn} Clocked in`} />
+                    <MetricCard title="Total Tasks" value={metrics.totalTasks} icon={<CheckCircle2 className="w-5 h-5"/>} color="primary" subtext={`${metrics.completedTasks} done`} />
+                    <MetricCard title="Completion Rate" value={`${metrics.completionRate}%`} icon={<TrendingUp className="w-5 h-5"/>} color="emerald" />
+                    <MetricCard title="Active Projects" value={metrics.activeProjects} icon={<Rocket className="w-5 h-5"/>} color="amber" />
                 </div>
 
-                {/* Charts Grid */}
+                {/* Clock In & Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <ClockInOut
                         workspaceId={workspaceId}
@@ -262,7 +188,7 @@ export default function AnalyticsPage() {
                     <PriorityDistribution stats={priorityStats} />
                 </div>
 
-                {/* Your Tasks and Team Availability */}
+                {/* Team & Tasks */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <TeamAvailability members={members} />
                     <div className="lg:col-span-2">
@@ -270,7 +196,7 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
 
-                {/* Project Health and Completion Trend */}
+                {/* Health & Trends */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <ProjectHealth spaces={spaces} tasks={tasks} />
                     <div className="lg:col-span-2">
@@ -278,19 +204,44 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
 
-                {/* Announcements and Sticky Notes */}
+                {/* Utilities */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                     <Announcements workspaceId={workspaceId} isAdmin={isAdmin} />
                     <StickyNotes workspaceId={workspaceId} userId={userId} />
                 </div>
 
-                {/* Team Performance Table */}
-                <TeamPerformanceTable
-                    members={members}
-                    tasks={tasks}
-                    searchQuery={searchQuery}
-                />
+                {/* Workspace Activity Timeline */}
+                <div className="mb-8">
+                    <WorkspaceActivity workspaceId={workspaceId} userId={userId} />
+                </div>
+
+                <TeamPerformanceTable members={members} tasks={tasks} searchQuery="" />
             </main>
         </div>
+    );
+}
+
+// Helper component for cleaner code
+function MetricCard({ title, value, icon, color, badge, subtext }: any) {
+    const colors: any = {
+        blue: "bg-blue-50 text-blue-600",
+        primary: "bg-primary/10 text-primary",
+        emerald: "bg-emerald-50 text-emerald-600",
+        amber: "bg-amber-50 text-amber-600"
+    };
+    return (
+        <Card>
+            <CardContent className="pt-6">
+                <div className="flex justify-between items-start mb-4">
+                    <span className="text-muted-foreground font-medium text-sm">{title}</span>
+                    <div className={`p-2 rounded-lg ${colors[color]}`}>{icon}</div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-2xl font-bold">{value}</h3>
+                    {badge && <Badge className="bg-emerald-50 text-emerald-600">{badge}</Badge>}
+                    {subtext && <span className="text-xs font-semibold text-emerald-500">{subtext}</span>}
+                </div>
+            </CardContent>
+        </Card>
     );
 }

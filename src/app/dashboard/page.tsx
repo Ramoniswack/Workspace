@@ -62,7 +62,7 @@ const getAvatarColor = (name: string) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isConnected } = useSocket();
+  const { isConnected, isConnecting } = useSocket();
   const { userId } = useAuthStore();
   
   // Local state for workspaces
@@ -248,9 +248,11 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">Welcome back, {userName}</p>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500' : isConnecting ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'
+              }`} />
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                {isConnected ? 'Connected' : 'Disconnected'}
+                {isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected'}
               </span>
             </div>
           </div>

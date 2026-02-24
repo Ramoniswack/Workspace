@@ -67,6 +67,11 @@ function storeAuthData(authData: AuthResponse): void {
   localStorage.setItem('userId', authData.user._id);
   localStorage.setItem('userName', authData.user.name);
   localStorage.setItem('userEmail', authData.user.email);
+  
+  // Dispatch custom event to notify socket context
+  window.dispatchEvent(new CustomEvent('auth-token-updated', { 
+    detail: { token: authData.token } 
+  }));
 }
 
 /**
