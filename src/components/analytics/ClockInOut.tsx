@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,39 +10,69 @@ import { toast } from 'sonner';
 interface ClockInOutProps {
   workspaceId: string;
   currentStatus: 'active' | 'inactive';
+  runningTimer: any;
   onStatusChange: () => void;
 }
 
-export function ClockInOut({ workspaceId, currentStatus, onStatusChange }: ClockInOutProps) {
+export function ClockInOut({ workspaceId, currentStatus, runningTimer, onStatusChange }: ClockInOutProps) {
   const [loading, setLoading] = useState(false);
   const [clockedIn, setClockedIn] = useState(currentStatus === 'active');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Update local state when prop changes
   useEffect(() => {
     setClockedIn(currentStatus === 'active');
   }, [currentStatus]);
 
-  const handleClockToggle = async () => {
-    try {
-      setLoading(true);
-      const newStatus = clockedIn ? 'inactive' : 'active';
-      
-      await api.patch(`/workspaces/${workspaceId}/members/me/status`, {
-        status: newStatus
-      });
+  useEffect(() => {
+    if (clockedIn && runningTimer?.startTime) {
+      const startTime = new Date(runningTimer.startTime).getTime();
+      const now = Date.now();
+      const initialSeconds = Math.floor((now - startTime) / 1000);
+      setElapsedSeconds(initialSeconds);
 
-      setClockedIn(!clockedIn);
-      toast.success(clockedIn ? 'Clocked out successfully' : 'Clocked in successfully');
-      
-      // Refresh analytics data to update clocked in count
-      onStatusChange();
-    } catch (error: any) {
-      console.error('Failed to toggle clock status:', error);
-      toast.error(error.response?.data?.message || 'Failed to update status');
-    } finally {
-      setLoading(false);
+      const interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else {
+      setElapsedSeconds(0);
     }
+  }, [clockedIn, runningTimer]);
+
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return [hours, minutes, secs]
+    .map(v => v < 10 ? "0" + v : v)
+    .join(":");
   };
+
+  const handleClockToggle = async () => {
+    if (!workspaceId) {
+    toast.error("Workspace ID is missing");
+    return;
+  }
+  
+  try {
+    setLoading(true);
+    const newStatus = clockedIn ? 'inactive' : 'active';
+    
+    // NOTE: Added backticks and ${workspaceId} to fix the // error
+    await api.post(`/workspaces/${workspaceId}/clock/toggle`, {
+      status: newStatus
+    });
+    await onStatusChange();
+
+    toast.success(clockedIn ? 'Clocked out!' : 'Clocked in!');
+  } catch (error: any) {
+    console.error('Failed to toggle clock status:', error);
+    toast.error(error.response?.data?.message || 'Failed to update status');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Card>
@@ -51,9 +81,15 @@ export function ClockInOut({ workspaceId, currentStatus, onStatusChange }: Clock
       </div>
       <CardContent className="p-6">
         <div className="flex flex-col items-center justify-center py-8">
-          <div className={`p-4 rounded-full mb-4 ${clockedIn ? 'bg-emerald-100 dark:bg-emerald-900/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
-            <Clock className={`w-8 h-8 ${clockedIn ? 'text-emerald-600' : 'text-slate-500'}`} />
+          <div className={`p-4 rounded-full mb-4 `}>
+            <Clock className={`w-8 h-8 `} />
           </div>
+          
+          {clockedIn && (
+            <div className="text-3xl font-bold text-emerald-600 mb-2">
+              {formatTime(elapsedSeconds)}
+            </div>
+          )}
           
           <p className="text-sm text-muted-foreground mb-6">
             {clockedIn ? 'You are currently clocked in' : 'You are currently clocked out'}
@@ -62,7 +98,7 @@ export function ClockInOut({ workspaceId, currentStatus, onStatusChange }: Clock
           <Button
             onClick={handleClockToggle}
             disabled={loading}
-            className={`w-full gap-2 ${clockedIn ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+            className={`w-full gap-2 `}
           >
             {clockedIn ? (
               <>

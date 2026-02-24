@@ -66,7 +66,7 @@ export default function ListView() {
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
   const { tasks, loading, fetchTasks, updateTask, deleteTask, createTask, bulkUpdateTasks, bulkDeleteTasks, assignTask, updateTaskStatus } = useTaskStore();
-  const { logActivity } = useActivityStore();
+  const { activities, loading: activitiesLoading, fetchActivities } = useActivityStore();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [space, setSpace] = useState<Space | null>(null);
@@ -97,6 +97,12 @@ export default function ListView() {
       fetchData();
     }
   }, [listId, spaceId, workspaceId]);
+
+  useEffect(() => {
+    if (view === 'activity' && listId) {
+      fetchActivities({ listId });
+    }
+  }, [view, listId]);
 
   const fetchData = async () => {
     // Guard checks BEFORE any async operations
@@ -246,19 +252,13 @@ export default function ListView() {
       if (!task) return;
 
       await updateTask(taskId, { priority: newPriority });
-      
-      await logActivity({
-        userId: userId!,
-        action: `changed priority to ${newPriority}`,
-        target: task.title,
-        type: 'update',
-        workspaceId,
-        spaceId,
-        listId,
-        taskId,
-      });
 
       toast.success('Task priority updated');
+      
+      // Refresh activities if on activity view
+      if (view === 'activity') {
+        fetchActivities({ listId });
+      }
     } catch (error) {
       toast.error('Failed to update task priority');
     }
@@ -299,17 +299,6 @@ export default function ListView() {
 
     try {
       const task = await createTask(listId, newTaskData);
-      
-      await logActivity({
-        userId: userId!,
-        action: 'created task',
-        target: task.title,
-        type: 'create',
-        workspaceId,
-        spaceId,
-        listId,
-        taskId: task._id,
-      });
 
       setShowCreateModal(false);
       setNewTaskData({
@@ -319,6 +308,11 @@ export default function ListView() {
         status: 'todo',
       });
       toast.success('Task created successfully');
+      
+      // Refresh activities if on activity view
+      if (view === 'activity') {
+        fetchActivities({ listId });
+      }
     } catch (error) {
       toast.error('Failed to create task');
     }
@@ -330,19 +324,13 @@ export default function ListView() {
       if (!task) return;
 
       await deleteTask(taskId);
-      
-      await logActivity({
-        userId: userId!,
-        action: 'deleted task',
-        target: task.title,
-        type: 'delete',
-        workspaceId,
-        spaceId,
-        listId,
-        taskId,
-      });
 
       toast.success('Task deleted');
+      
+      // Refresh activities if on activity view
+      if (view === 'activity') {
+        fetchActivities({ listId });
+      }
     } catch (error) {
       toast.error('Failed to delete task');
     }
@@ -368,19 +356,14 @@ export default function ListView() {
 
     try {
       await bulkDeleteTasks(selectedTasks);
-      
-      await logActivity({
-        userId: userId!,
-        action: `deleted ${selectedTasks.length} tasks`,
-        target: 'multiple tasks',
-        type: 'delete',
-        workspaceId,
-        spaceId,
-        listId,
-      });
 
       setSelectedTasks([]);
       toast.success(`${selectedTasks.length} tasks deleted`);
+      
+      // Refresh activities if on activity view
+      if (view === 'activity') {
+        fetchActivities({ listId });
+      }
     } catch (error) {
       toast.error('Failed to delete tasks');
     }
@@ -391,19 +374,14 @@ export default function ListView() {
 
     try {
       await bulkUpdateTasks(selectedTasks, { status: newStatus });
-      
-      await logActivity({
-        userId: userId!,
-        action: `changed status of ${selectedTasks.length} tasks to ${newStatus}`,
-        target: 'multiple tasks',
-        type: 'update',
-        workspaceId,
-        spaceId,
-        listId,
-      });
 
       setSelectedTasks([]);
       toast.success(`${selectedTasks.length} tasks updated`);
+      
+      // Refresh activities if on activity view
+      if (view === 'activity') {
+        fetchActivities({ listId });
+      }
     } catch (error) {
       toast.error('Failed to update tasks');
     }
@@ -805,10 +783,10 @@ export default function ListView() {
         )}
 
         {view === 'activity' && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Activity log coming soon</p>
-          </div>
+          <ActivityLogView 
+            activities={activities} 
+            loading={activitiesLoading}
+          />
         )}
       </main>
 
@@ -1202,5 +1180,296 @@ function LoadingSkeleton() {
         </div>
       </main>
     </div>
+  );
+}
+
+interface ActivityLogViewProps {
+  activities: any[];
+  loading: boolean;
+}
+
+function ActivityLogView({ activities, loading }: ActivityLogViewProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'comment' | 'update'>('all');
+
+  // Filter activities
+  const filteredActivities = activities.filter(activity => {
+    const matchesSearch = searchQuery === '' || 
+      activity.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      activity.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      activity.fieldChanged?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesType = filterType === 'all' || activity.type === filterType;
+    
+    return matchesSearch && matchesType;
+  });
+
+  // Group activities by date
+  const groupedActivities = filteredActivities.reduce((groups: any, activity) => {
+    const date = new Date(activity.createdAt);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    let dateKey: string;
+    if (date.toDateString() === today.toDateString()) {
+      dateKey = 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      dateKey = 'Yesterday';
+    } else {
+      dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(activity);
+    return groups;
+  }, {});
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex gap-4 p-4 bg-card rounded-lg">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Search and Filter Bar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search activities..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Activity</SelectItem>
+                <SelectItem value="comment">Comments</SelectItem>
+                <SelectItem value="update">Updates</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Activity Timeline */}
+      {Object.keys(groupedActivities).length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Activity className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <p className="text-muted-foreground">No activities found</p>
+          </CardContent>
+        </Card>
+      ) : (
+        Object.entries(groupedActivities).map(([date, dateActivities]: [string, any]) => (
+          <div key={date} className="space-y-4">
+            {/* Date Header */}
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="px-3 py-1">
+                {date}
+              </Badge>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* Activities for this date */}
+            <div className="space-y-3 pl-4 border-l-2 border-border">
+              {dateActivities.map((activity: any) => (
+                <ActivityItem key={activity._id} activity={activity} />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+interface ActivityItemProps {
+  activity: any;
+}
+
+function ActivityItem({ activity }: ActivityItemProps) {
+  const user = activity.user || { name: 'Unknown User', avatar: null };
+  
+  // activity.task is already populated from backend with { _id, title, status }
+  // Handle both populated object and string reference
+  let taskTitle = 'Unknown Task';
+  let taskId = null;
+  
+  if (activity.task) {
+    if (typeof activity.task === 'string') {
+      taskId = activity.task;
+      taskTitle = 'Task'; // Fallback if not populated
+    } else {
+      taskId = activity.task._id;
+      taskTitle = activity.task.title || 'Unknown Task';
+    }
+  }
+  
+  const getInitials = (name: string) => {
+    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const formatTime = (date: string) => {
+    return new Date(date).toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  const getActivityDescription = () => {
+    if (activity.type === 'comment') {
+      return (
+        <>
+          <span className="font-semibold">{user.name}</span>
+          {' commented on '}
+          <span className="text-blue-600 dark:text-blue-400 font-medium">{taskTitle}</span>
+        </>
+      );
+    } else if (activity.type === 'update') {
+      const fieldLabels: any = {
+        status: 'status',
+        assignee: 'assignee',
+        priority: 'priority',
+        dueDate: 'due date',
+        startDate: 'start date',
+        title: 'title',
+        description: 'description',
+      };
+      
+      const field = fieldLabels[activity.fieldChanged] || activity.fieldChanged;
+      
+      // Special case for task creation (title field with null oldValue)
+      if (activity.fieldChanged === 'title' && !activity.oldValue) {
+        return (
+          <>
+            <span className="font-semibold">{user.name}</span>
+            {' created task '}
+            <span className="text-blue-600 dark:text-blue-400 font-medium">{taskTitle}</span>
+          </>
+        );
+      }
+      
+      return (
+        <>
+          <span className="font-semibold">{user.name}</span>
+          {' changed '}
+          <span className="font-medium">{field}</span>
+          {' on '}
+          <span className="text-blue-600 dark:text-blue-400 font-medium">{taskTitle}</span>
+        </>
+      );
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig: any = {
+      todo: { label: 'To Do', color: 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400' },
+      inprogress: { label: 'In Progress', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+      review: { label: 'Review', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
+      done: { label: 'Done', color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+      cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' },
+    };
+    
+    const config = statusConfig[status] || statusConfig.todo;
+    return <Badge className={config.color}>{config.label}</Badge>;
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    const priorityConfig: any = {
+      low: { label: 'Low', color: 'bg-slate-100 text-slate-600' },
+      medium: { label: 'Medium', color: 'bg-blue-100 text-blue-600' },
+      high: { label: 'High', color: 'bg-orange-100 text-orange-600' },
+      urgent: { label: 'Urgent', color: 'bg-red-100 text-red-600' },
+    };
+    
+    const config = priorityConfig[priority] || priorityConfig.medium;
+    return <Badge className={config.color}>{config.label}</Badge>;
+  };
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex gap-3">
+          {/* Avatar */}
+          <Avatar className="w-10 h-10 flex-shrink-0">
+            <AvatarImage src={user.avatar} />
+            <AvatarFallback className="bg-blue-600 text-white text-sm">
+              {getInitials(user.name)}
+            </AvatarFallback>
+          </Avatar>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-foreground mb-1">
+              {getActivityDescription()}
+            </div>
+            
+            {/* Comment Content */}
+            {activity.type === 'comment' && activity.content && (
+              <div className="mt-2 p-3 bg-muted/50 rounded-lg border border-border">
+                <p className="text-sm text-foreground">{activity.content}</p>
+              </div>
+            )}
+            
+            {/* Update Details */}
+            {activity.type === 'update' && activity.fieldChanged !== 'title' && (
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                {activity.fieldChanged === 'status' && (
+                  <>
+                    {getStatusBadge(activity.oldValue)}
+                    <span className="text-muted-foreground">→</span>
+                    {getStatusBadge(activity.newValue)}
+                  </>
+                )}
+                {activity.fieldChanged === 'priority' && (
+                  <>
+                    {getPriorityBadge(activity.oldValue)}
+                    <span className="text-muted-foreground">→</span>
+                    {getPriorityBadge(activity.newValue)}
+                  </>
+                )}
+                {activity.fieldChanged === 'assignee' && (
+                  <span className="text-muted-foreground">
+                    {activity.oldValue?.name || 'Unassigned'} → {activity.newValue?.name || 'Unassigned'}
+                  </span>
+                )}
+                {!['status', 'priority', 'assignee'].includes(activity.fieldChanged) && (
+                  <span className="text-muted-foreground">
+                    {String(activity.oldValue || 'None')} → {String(activity.newValue || 'None')}
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Timestamp */}
+            <div className="mt-2 text-xs text-muted-foreground">
+              {formatTime(activity.createdAt)}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -51,6 +51,8 @@ export function ClickUpSidebar() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
+  const [allWorkspaces, setAllWorkspaces] = useState<any[]>([]);
 
   // Extract workspaceId from URL
   let workspaceId = params?.id as string;
@@ -79,6 +81,26 @@ export function ClickUpSidebar() {
       if (storedAvatar) setUserAvatar(storedAvatar);
     }
   }, []);
+
+  // Fetch all workspaces for switcher
+  const fetchAllWorkspaces = async () => {
+    try {
+      const response = await api.get('/workspaces');
+      setAllWorkspaces(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch workspaces:', error);
+    }
+  };
+
+  const handleWorkspaceClick = () => {
+    setShowWorkspaceSwitcher(true);
+    fetchAllWorkspaces();
+  };
+
+  const switchWorkspace = (newWorkspaceId: string) => {
+    setShowWorkspaceSwitcher(false);
+    window.location.href = `/workspace/${newWorkspaceId}`;
+  };
 
   // Fetch hierarchy
   const fetchHierarchy = useCallback(async () => {
@@ -120,10 +142,37 @@ export function ClickUpSidebar() {
           try {
             console.log(`[ClickUpSidebar] Fetching data for space "${space.name}" (${space._id})`);
             
-            // Fetch lists
+            // Fetch lists (backend already includes taskCount and completedCount)
             const listsRes = await api.get(`/spaces/${space._id}/lists`);
             const allLists = listsRes.data.data || listsRes.data || [];
-            console.log(`[ClickUpSidebar] Space "${space.name}" - Fetched ${allLists.length} lists`);
+            console.log(`[ClickUpSidebar] Space "${space.name}" - Fetched ${allLists.length} lists with task counts`);
+
+            // Fetch tasks for each list to calculate task counts
+            const listsWithTaskCounts = await Promise.all(
+              allLists.map(async (list: any) => {
+                try {
+                  const tasksRes = await api.get(`/lists/${list._id}/tasks`);
+                  const tasks = tasksRes.data.data || tasksRes.data || [];
+                  const completedTasks = tasks.filter((task: any) => task.status === 'done').length;
+                  const totalTasks = tasks.length;
+                  
+                  return {
+                    ...list,
+                    completedTasks,
+                    totalTasks,
+                  };
+                } catch (error) {
+                  console.error(`Failed to fetch tasks for list ${list._id}:`, error);
+                  return {
+                    ...list,
+                    completedTasks: 0,
+                    totalTasks: 0,
+                  };
+                }
+              })
+            );
+            
+            console.log(`[ClickUpSidebar] Space "${space.name}" - Calculated task counts for ${listsWithTaskCounts.length} lists`);
 
             // Fetch folders
             const foldersRes = await api.get(`/spaces/${space._id}/folders`);
@@ -133,7 +182,7 @@ export function ClickUpSidebar() {
             // Separate lists into those with folders and those without
             const listsWithFolder = new Set<string>();
             const foldersWithLists = folders.map((folder: any) => {
-              const folderLists = allLists.filter((list: any) => {
+              const folderLists = listsWithTaskCounts.filter((list: any) => {
                 const listFolderId = typeof list.folder === 'string' ? list.folder : list.folder?._id;
                 if (listFolderId === folder._id) {
                   listsWithFolder.add(list._id);
@@ -153,7 +202,7 @@ export function ClickUpSidebar() {
             });
 
             // Lists without folder
-            const listsWithoutFolder = allLists
+            const listsWithoutFolder = listsWithTaskCounts
               .filter((list: any) => !listsWithFolder.has(list._id))
               .map((list: any) => ({
                 ...list,
@@ -363,7 +412,10 @@ export function ClickUpSidebar() {
         <div className="w-[240px] bg-white dark:bg-[#1a1a1a] border-r border-slate-200 dark:border-[#262626] flex flex-col">
           {/* Workspace Header */}
           <div className="p-3 border-b border-slate-200 dark:border-[#262626]">
-            <button className="flex items-center gap-2 w-full hover:bg-slate-50 dark:hover:bg-[#262626] rounded-lg p-2 transition-colors">
+            <button 
+              onClick={handleWorkspaceClick}
+              className="flex items-center gap-2 w-full hover:bg-slate-50 dark:hover:bg-[#262626] rounded-lg p-2 transition-colors"
+            >
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-semibold text-xs"
                 style={{ backgroundColor: themeColor }}
@@ -557,6 +609,57 @@ export function ClickUpSidebar() {
           </div>
         </div>
       </div>
+
+      {/* Workspace Switcher Modal */}
+      {showWorkspaceSwitcher && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowWorkspaceSwitcher(false)}
+        >
+          <div 
+            className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[80vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 dark:border-[#262626]">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Switch Workspace</h3>
+            </div>
+            <ScrollArea className="max-h-[60vh] p-4">
+              <div className="space-y-2">
+                {allWorkspaces.map((workspace) => (
+                  <button
+                    key={workspace._id}
+                    onClick={() => switchWorkspace(workspace._id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 rounded-lg transition-colors",
+                      workspace._id === workspaceId
+                        ? "bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500"
+                        : "hover:bg-slate-50 dark:hover:bg-[#262626] border-2 border-transparent"
+                    )}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      {workspace.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="font-semibold text-slate-900 dark:text-white">
+                        {workspace.name}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {workspace.members?.length || 0} members
+                      </div>
+                    </div>
+                    {workspace._id === workspaceId && (
+                      <div className="text-blue-500 text-xs font-medium">Current</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
+      )}
     </>
   );
 }

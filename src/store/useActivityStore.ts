@@ -3,18 +3,28 @@ import { api } from '@/lib/axios';
 
 export interface Activity {
   _id: string;
-  userId: string;
-  userName: string;
-  userAvatar?: string;
-  action: string;
-  target: string;
-  type: 'create' | 'update' | 'delete' | 'comment';
-  workspaceId: string;
-  spaceId?: string;
-  listId?: string;
-  taskId?: string;
-  metadata?: Record<string, any>;
+  user: {
+    _id: string;
+    name: string;
+    email: string;
+    avatar?: string;
+  };
+  task: {
+    _id: string;
+    title: string;
+    status: string;
+  };
+  type: 'comment' | 'update';
+  content?: string;
+  fieldChanged?: string;
+  oldValue?: any;
+  newValue?: any;
+  isSystemGenerated: boolean;
+  workspace: string;
+  mentions?: string[];
+  reactions?: any[];
   createdAt: string;
+  updatedAt: string;
 }
 
 interface ActivityStore {
@@ -24,17 +34,6 @@ interface ActivityStore {
   
   // Actions
   fetchActivities: (params: { workspaceId?: string; spaceId?: string; listId?: string }) => Promise<void>;
-  logActivity: (data: {
-    userId: string;
-    action: string;
-    target: string;
-    type: 'create' | 'update' | 'delete' | 'comment';
-    workspaceId: string;
-    spaceId?: string;
-    listId?: string;
-    taskId?: string;
-    metadata?: Record<string, any>;
-  }) => Promise<void>;
   clearActivities: () => void;
 }
 
@@ -52,23 +51,15 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
       if (params.listId) queryParams.append('listId', params.listId);
       
       const response = await api.get(`/activities?${queryParams.toString()}`);
-      set({ activities: response.data.data, loading: false });
+      const activitiesData = response.data.data || [];
+      set({ activities: activitiesData, loading: false });
     } catch (error: any) {
+      console.error('Failed to fetch activities:', error);
       set({ 
         error: error.response?.data?.message || 'Failed to fetch activities',
-        loading: false 
+        loading: false,
+        activities: []
       });
-    }
-  },
-
-  logActivity: async (data) => {
-    try {
-      const response = await api.post('/activities', data);
-      const newActivity = response.data.data;
-      set({ activities: [newActivity, ...get().activities] });
-    } catch (error: any) {
-      console.error('Failed to log activity:', error);
-      // Don't throw error for activity logging failures
     }
   },
 

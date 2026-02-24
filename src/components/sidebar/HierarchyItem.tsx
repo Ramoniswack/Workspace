@@ -192,13 +192,6 @@ const getRoute = () => {
           {/* Name */}
           <span className="flex-1 text-sm truncate">{item.name}</span>
 
-          {/* Task Count for Lists */}
-          {item.type === 'list' && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">
-              {item.completedTasks || 0}/{item.totalTasks || 0}
-            </span>
-          )}
-
           {/* Favorite Star */}
           {isFavorite && (
             <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0" />
@@ -285,7 +278,7 @@ const getRoute = () => {
                   item={folder}
                   level={level + 1}
                   workspaceId={workspaceId}
-                  parentSpaceId={parentSpaceId}
+                  parentSpaceId={item._id}
                 />
               ))}
             </>
@@ -300,7 +293,7 @@ const getRoute = () => {
                   item={list}
                   level={level + 1}
                   workspaceId={workspaceId}
-                  parentSpaceId={parentSpaceId}
+                  parentSpaceId={item._id}
                 />
               ))}
             </>
@@ -315,6 +308,7 @@ const getRoute = () => {
                   item={list}
                   level={level + 1}
                   workspaceId={workspaceId}
+                  parentSpaceId={parentSpaceId}
                 />
               ))}
             </>
