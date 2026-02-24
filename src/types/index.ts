@@ -43,6 +43,10 @@ export interface List {
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
+  taskCount?: number;
+  completedCount?: number;
+  members?: string[];
+  folderId?: string | null;
 }
 
 export interface Task {

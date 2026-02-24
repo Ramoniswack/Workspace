@@ -210,8 +210,8 @@ export default function SpaceHomePage() {
     let totalTasks = 0;
     let completedTasks = 0;
     listsToCalculate.forEach(list => {
-      const taskCount = (list as any).taskCount || 0;
-      const completedCount = (list as any).completedCount || 0;
+      const taskCount = list.taskCount || 0;
+      const completedCount = list.completedCount || 0;
       totalTasks += taskCount;
       completedTasks += completedCount;
     });
@@ -882,8 +882,8 @@ interface ListItemProps { list: List; spaceColor: string; workspaceId: string; s
 
 function ListItem({ list, spaceColor, workspaceId, spaceId, canManage, isReadOnly, onDelete }: ListItemProps) {
   const router = useRouter();
-  const taskCount = (list as any).taskCount || 0;
-  const completedCount = (list as any).completedCount || 0;
+  const taskCount = list.taskCount || 0;
+  const completedCount = list.completedCount || 0;
   const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
   return (<Card className="cursor-pointer hover:shadow-md transition-all hover:border-primary/50" onClick={() => router.push(`/workspace/${workspaceId}/spaces/${spaceId}/lists/${list._id}`)}><CardContent className="p-4"><div className="flex items-center justify-between"><div className="flex items-center gap-3 flex-1"><div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${spaceColor}20` }}><FileText className="w-5 h-5" style={{ color: spaceColor }} /></div><div className="flex-1 min-w-0"><h4 className="font-semibold truncate">{list.name}</h4><div className="flex items-center gap-4 mt-1"><span className="text-sm text-muted-foreground">{completedCount}/{taskCount} tasks</span><div className="flex-1 max-w-[100px]"><Progress value={progress} className="h-1.5" /></div><span className="text-xs text-muted-foreground">{progress}%</span></div></div></div>{canManage && !isReadOnly && (<DropdownMenu><DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}><button className="p-1 hover:bg-accent rounded transition-colors"><MoreVertical className="w-4 h-4 text-muted-foreground" /></button></DropdownMenuTrigger><DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}><DropdownMenuItem onClick={(e) => { e.stopPropagation(); }}><Edit className="w-4 h-4 mr-2" />Edit List</DropdownMenuItem><DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={(e) => { e.stopPropagation(); onDelete(list._id, list.name); }}><Trash2 className="w-4 h-4 mr-2" />Delete List</DropdownMenuItem></DropdownMenuContent></DropdownMenu>)}</div></CardContent></Card>);
 }
