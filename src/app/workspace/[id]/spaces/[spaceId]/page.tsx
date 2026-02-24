@@ -337,7 +337,7 @@ export default function SpaceHomePage() {
               recipientId: memberId,
               type: 'space_assignment',
               title: 'Assigned to Space',
-              message: `You've been assigned to "${space?.name}"`,
+              message: `You've been assigned to "${currentSpace?.name}"`,
               link: `/workspace/${workspaceId}/spaces/${spaceId}`,
             })
           )

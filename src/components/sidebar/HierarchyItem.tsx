@@ -266,55 +266,54 @@ const getRoute = () => {
         </Link>
       </div>
 
-      {/* Recursive Children */}
-      {isExpanded && hasChildren && (
-        <div className="mt-0.5">
-          {/* Render folders first (for spaces) */}
-          {item.type === 'space' && item.folders && item.folders.length > 0 && (
-            <>
-              {item.folders.map((folder) => (
-                <HierarchyItemComponent
-                  key={folder._id}
-                  item={folder}
-                  level={level + 1}
-                  workspaceId={workspaceId}
-                  parentSpaceId={item._id}
-                />
-              ))}
-            </>
-          )}
+{isExpanded && (
+  <div className="mt-0.5">
 
-          {/* Render standalone lists (lists without folder) */}
-          {item.type === 'space' && (item as any).listsWithoutFolder && (item as any).listsWithoutFolder.length > 0 && (
-            <>
-              {(item as any).listsWithoutFolder.map((list: any) => (
-                <HierarchyItemComponent
-                  key={list._id}
-                  item={list}
-                  level={level + 1}
-                  workspaceId={workspaceId}
-                  parentSpaceId={item._id}
-                />
-              ))}
-            </>
-          )}
+    {/* SPACE CHILDREN */}
+    {item.type === 'space' && (
+      <>
+        {/* Render folders */}
+        {item.folders?.map((folder) => (
+          <HierarchyItemComponent
+            key={folder._id}
+            item={folder}
+            level={level + 1}
+            workspaceId={workspaceId}
+            parentSpaceId={item._id}
+          />
+        ))}
 
-          {/* Render lists inside folders */}
-          {item.type === 'folder' && item.lists && item.lists.length > 0 && (
-            <>
-              {item.lists.map((list) => (
-                <HierarchyItemComponent
-                  key={list._id}
-                  item={list}
-                  level={level + 1}
-                  workspaceId={workspaceId}
-                  parentSpaceId={parentSpaceId}
-                />
-              ))}
-            </>
-          )}
-        </div>
-      )}
+        {/* Render ONLY lists that truly have NO folder */}
+        {(item as any).listsWithoutFolder
+          ?.filter((list: any) => !list.folder)
+          .map((list: any) => (
+            <HierarchyItemComponent
+              key={list._id}
+              item={list}
+              level={level + 1}
+              workspaceId={workspaceId}
+              parentSpaceId={item._id}
+            />
+          ))}
+      </>
+    )}
+
+    {/* FOLDER CHILDREN */}
+    {item.type === 'folder' && (
+      <>
+        {item.lists?.map((list) => (
+          <HierarchyItemComponent
+            key={list._id}
+            item={list}
+            level={level + 1}
+            workspaceId={workspaceId}
+            parentSpaceId={parentSpaceId}
+          />
+        ))}
+      </>
+    )}
+  </div>
+)}
     </div>
   );
 }

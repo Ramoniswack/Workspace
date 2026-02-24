@@ -43,7 +43,7 @@ export function ClickUpSidebar() {
   const { setWorkspaceContext } = useWorkspaceContext();
   const { unreadCount } = useNotificationStore();
   const { accentColor } = useThemeStore();
-  
+
   // Use workspace store instead of local state
   const { hierarchy, loading, error, setHierarchy, setLoading, setError } = useWorkspaceStore();
   const [userName, setUserName] = useState('User');
@@ -56,7 +56,7 @@ export function ClickUpSidebar() {
 
   // Extract workspaceId from URL
   let workspaceId = params?.id as string;
-  
+
   if (!workspaceId && pathname) {
     const workspaceMatch = pathname.match(/\/workspace\/([^\/]+)/);
     if (workspaceMatch) {
@@ -141,7 +141,7 @@ export function ClickUpSidebar() {
         spaces.map(async (space: any) => {
           try {
             console.log(`[ClickUpSidebar] Fetching data for space "${space.name}" (${space._id})`);
-            
+
             // Fetch lists (backend already includes taskCount and completedCount)
             const listsRes = await api.get(`/spaces/${space._id}/lists`);
             const allLists = listsRes.data.data || listsRes.data || [];
@@ -155,7 +155,7 @@ export function ClickUpSidebar() {
                   const tasks = tasksRes.data.data || tasksRes.data || [];
                   const completedTasks = tasks.filter((task: any) => task.status === 'done').length;
                   const totalTasks = tasks.length;
-                  
+
                   return {
                     ...list,
                     completedTasks,
@@ -171,7 +171,7 @@ export function ClickUpSidebar() {
                 }
               })
             );
-            
+
             console.log(`[ClickUpSidebar] Space "${space.name}" - Calculated task counts for ${listsWithTaskCounts.length} lists`);
 
             // Fetch folders
@@ -179,20 +179,14 @@ export function ClickUpSidebar() {
             const folders = foldersRes.data.data || foldersRes.data || [];
             console.log(`[ClickUpSidebar] Space "${space.name}" - Fetched ${folders.length} folders`);
 
-            // Separate lists into those with folders and those without
-            const listsWithFolder = new Set<string>();
+            // Separate lists into folders using folderId
             const foldersWithLists = folders.map((folder: any) => {
-              const folderLists = listsWithTaskCounts.filter((list: any) => {
-                const listFolderId = typeof list.folder === 'string' ? list.folder : list.folder?._id;
-                if (listFolderId === folder._id) {
-                  listsWithFolder.add(list._id);
-                  return true;
-                }
-                return false;
-              }).map((list: any) => ({
-                ...list,
-                type: 'list',
-              }));
+              const folderLists = listsWithTaskCounts
+                .filter((list: any) => list.folderId === folder._id)
+                .map((list: any) => ({
+                  ...list,
+                  type: 'list',
+                }));
 
               return {
                 ...folder,
@@ -201,9 +195,9 @@ export function ClickUpSidebar() {
               };
             });
 
-            // Lists without folder
+            // Lists without folder (standalone lists)
             const listsWithoutFolder = listsWithTaskCounts
-              .filter((list: any) => !listsWithFolder.has(list._id))
+              .filter((list: any) => !list.folderId)
               .map((list: any) => ({
                 ...list,
                 type: 'list',
@@ -254,7 +248,7 @@ export function ClickUpSidebar() {
       console.error('Failed to fetch hierarchy:', err);
       const errorMessage = err.response?.data?.message || err.message || 'Failed to load workspace';
       setError(errorMessage);
-      
+
       if (err.response?.status === 404) {
         setTimeout(() => {
           if (typeof window !== 'undefined') {
@@ -302,7 +296,7 @@ export function ClickUpSidebar() {
   return (
     <>
       <CreateItemModal />
-      
+
       <div className="flex h-screen">
         {/* Left Icon Bar - Accent Color with Gradient - REDUCED WIDTH */}
         <div
@@ -315,7 +309,7 @@ export function ClickUpSidebar() {
           <div className="mb-6">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base shadow-lg"
-              style={{ 
+              style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.2)',
                 color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff'
               }}
@@ -336,18 +330,18 @@ export function ClickUpSidebar() {
               )}
               title="Home"
             >
-              <Home 
-                className="w-5 h-5" 
+              <Home
+                className="w-5 h-5"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               />
-              <span 
+              <span
                 className="text-[9px] font-medium"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
                 Home
               </span>
             </Link>
-            
+
             <Link
               href={`/workspace/${workspaceId}/analytics`}
               className={cn(
@@ -358,27 +352,27 @@ export function ClickUpSidebar() {
               )}
               title="Analytics"
             >
-              <BarChart3 
-                className="w-5 h-5" 
+              <BarChart3
+                className="w-5 h-5"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               />
-              <span 
+              <span
                 className="text-[9px] font-medium"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
                 Analytics
               </span>
             </Link>
-            
-            <button 
+
+            <button
               className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
               title="More"
             >
-              <MoreHorizontal 
-                className="w-5 h-5" 
+              <MoreHorizontal
+                className="w-5 h-5"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               />
-              <span 
+              <span
                 className="text-[9px] font-medium"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
@@ -389,16 +383,16 @@ export function ClickUpSidebar() {
 
           {/* Bottom Actions */}
           <div className="flex flex-col gap-2 w-full px-2 mt-auto">
-            <button 
+            <button
               onClick={handleInvite}
               className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
               title="Workspace Members"
             >
-              <UserPlus 
-                className="w-5 h-5" 
+              <UserPlus
+                className="w-5 h-5"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               />
-              <span 
+              <span
                 className="text-[9px] font-medium text-center"
                 style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
               >
@@ -412,7 +406,7 @@ export function ClickUpSidebar() {
         <div className="w-[240px] bg-white dark:bg-[#1a1a1a] border-r border-slate-200 dark:border-[#262626] flex flex-col">
           {/* Workspace Header */}
           <div className="p-3 border-b border-slate-200 dark:border-[#262626]">
-            <button 
+            <button
               onClick={handleWorkspaceClick}
               className="flex items-center gap-2 w-full hover:bg-slate-50 dark:hover:bg-[#262626] rounded-lg p-2 transition-colors"
             >
@@ -543,9 +537,9 @@ export function ClickUpSidebar() {
                       Spaces
                     </span>
                     {isClient && can('create_space') && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-5 w-5"
                         onClick={handleCreateSpace}
                       >
@@ -612,11 +606,11 @@ export function ClickUpSidebar() {
 
       {/* Workspace Switcher Modal */}
       {showWorkspaceSwitcher && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
           onClick={() => setShowWorkspaceSwitcher(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[80vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
