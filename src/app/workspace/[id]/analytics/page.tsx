@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/axios';
 import {
     TrendingUp, Users, CheckCircle2, Rocket,
-    Download, Calendar, BarChart3
+    Download, Calendar, BarChart3, ArrowLeft
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import { Task } from '@/types';
 
 export default function AnalyticsPage() {
     const params = useParams();
+    const router = useRouter();
     const workspaceId = params.id as string;
 
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -157,6 +158,15 @@ export default function AnalyticsPage() {
     return (
         <div className="min-h-screen bg-background">
             <main className="max-w-[1440px] mx-auto px-6 py-8">
+                {/* Back Button */}
+                <button
+                    onClick={() => router.push('/dashboard')}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Dashboard
+                </button>
+
                 {/* Header Actions */}
                 <div className="flex justify-end gap-3 mb-8">
                     {isAdmin && (

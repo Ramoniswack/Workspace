@@ -27,6 +27,9 @@ export default function RootLayout({
                       pathname === '/register' || 
                       pathname === '/join' || 
                       pathname?.startsWith('/auth/');
+  
+  // Check if current page is the dashboard (hide header only on dashboard)
+  const isDashboardPage = pathname === '/dashboard';
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -54,7 +57,7 @@ export default function RootLayout({
                 {children}
               </main>
             ) : (
-              // Regular pages - with sidebar and header
+              // Regular pages - with sidebar and header (hide header only on dashboard)
               <div className="flex h-screen overflow-hidden bg-background">
                 {/* ClickUp Style Sidebar - Hidden on mobile, visible on desktop */}
                 <div className="hidden lg:flex">
@@ -63,8 +66,8 @@ export default function RootLayout({
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  {/* Header */}
-                  <Header />
+                  {/* Header - Hide only on dashboard page */}
+                  {!isDashboardPage && <Header />}
 
                   {/* Page Content */}
                   <main className="flex-1 overflow-auto bg-background">
