@@ -33,10 +33,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   createTask: async (listId: string, data: Partial<Task>) => {
     try {
-      console.log('[TaskStore] Creating task with data:', data);
       const response = await api.post(`/lists/${listId}/tasks`, data);
       const newTask = response.data.data;
-      console.log('[TaskStore] Task created, response:', newTask);
       set({ tasks: [...get().tasks, newTask] });
       toast.success("Task created successfully");
       return newTask;

@@ -303,21 +303,13 @@ export default function ListView() {
     }
 
     try {
-      console.log('[CreateTask] newTaskData before conversion:', newTaskData);
-      console.log('[CreateTask] newTaskData.deadline type:', typeof newTaskData.deadline);
-      console.log('[CreateTask] newTaskData.deadline value:', newTaskData.deadline);
-      
       // Convert deadline Date to ISO string for API
       const taskData = {
         ...newTaskData,
         deadline: newTaskData.deadline ? newTaskData.deadline.toISOString() : undefined,
       };
       
-      console.log('[CreateTask] taskData after conversion:', taskData);
-      console.log('[CreateTask] taskData.deadline:', taskData.deadline);
-      console.log('[CreateTask] Creating task with data:', taskData);
       const task = await createTask(listId, taskData);
-      console.log('[CreateTask] Task created:', task);
 
       setShowCreateModal(false);
       setNewTaskData({
