@@ -28,6 +28,7 @@ import { useThemeStore, accentColors, getGradientColor } from '@/store/useThemeS
 import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { HierarchyItemComponent } from './HierarchyItem';
 import { CreateItemModal } from '@/components/modals/CreateItemModal';
+import { EditSpaceModal } from '@/components/modals/EditSpaceModal';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -295,6 +296,7 @@ export function ClickUpSidebar() {
   return (
     <>
       <CreateItemModal />
+      <EditSpaceModal />
 
       <div className={cn(
         "flex h-screen transition-all duration-300",

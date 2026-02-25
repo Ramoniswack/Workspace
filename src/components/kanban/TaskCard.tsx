@@ -23,15 +23,6 @@ export function TaskCard({
   canDrag = true,
   columnId,
 }: TaskCardProps) {
-  // Debug logging
-  if (task.deadline) {
-    console.log('[TaskCard] Task has deadline:', { 
-      taskId: task._id, 
-      title: task.title,
-      deadline: task.deadline 
-    });
-  }
-
   const {
     attributes,
     listeners,
@@ -98,19 +89,19 @@ export function TaskCard({
       {...attributes}
       {...listeners}
       className={`
-        w-full bg-white dark:bg-slate-800 p-2.5 sm:p-3 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700/50 
-        hover:shadow-md transition-all cursor-grab
+        w-full bg-white dark:bg-slate-800 p-3 sm:p-3.5 rounded-lg shadow-md border-2 border-slate-200 dark:border-slate-700/50 
+        hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-grab
         ${isInProgress ? 'border-l-4 border-l-primary' : ''}
-        ${isDone ? 'bg-white/60 dark:bg-slate-800/60 opacity-80' : ''}
+        ${isDone ? 'bg-slate-50 dark:bg-slate-800/60 opacity-80' : ''}
         ${isDragging || isOverlay ? 'shadow-2xl rotate-2 scale-105 opacity-90' : ''}
         ${isSortableDragging ? 'opacity-50' : ''}
         ${!canDrag ? 'cursor-not-allowed opacity-60' : ''}
       `}
     >
       {/* Header: Priority Badge + Status Icon */}
-      <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+      <div className="flex justify-between items-start mb-2 sm:mb-2.5">
         <span
-          className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+          className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded"
           style={{
             backgroundColor: priority.bg,
             color: priority.color,
@@ -119,7 +110,7 @@ export function TaskCard({
           {priority.label}
         </span>
         {isDone && (
-          <span className="material-symbols-outlined text-emerald-500 text-[14px] sm:text-[16px]">
+          <span className="material-symbols-outlined text-emerald-500 text-[16px] sm:text-[18px]">
             check_circle
           </span>
         )}
@@ -127,7 +118,7 @@ export function TaskCard({
 
       {/* Task Title */}
       <h4
-        className={`font-semibold leading-tight mb-1.5 sm:mb-2 text-[11px] sm:text-xs line-clamp-2 ${
+        className={`font-semibold leading-tight mb-2 sm:mb-2.5 text-xs sm:text-sm line-clamp-2 ${
           isDone
             ? 'text-slate-500 dark:text-slate-400 line-through'
             : 'text-slate-900 dark:text-slate-50'
@@ -137,7 +128,7 @@ export function TaskCard({
       </h4>
 
       {/* Footer: Deadline/Status + Avatar */}
-      <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
+      <div className="flex items-center justify-between text-[10px] sm:text-[11px]">
         {task.deadline ? (
           (() => {
             const now = new Date();
@@ -152,9 +143,9 @@ export function TaskCard({
                 isOverdue ? 'text-red-600 dark:text-red-400' :
                 isApproaching ? 'text-amber-600 dark:text-amber-400' :
                 completedOnTime ? 'text-emerald-600 dark:text-emerald-400' :
-                'text-slate-400'
+                'text-slate-500 dark:text-slate-400'
               }`}>
-                <span className="material-symbols-outlined text-[12px] sm:text-[14px]">
+                <span className="material-symbols-outlined text-[14px] sm:text-[16px]">
                   {isOverdue ? 'error' : completedOnTime ? 'check_circle' : 'schedule'}
                 </span>
                 <span>
@@ -167,33 +158,33 @@ export function TaskCard({
           })()
         ) : isInProgress && !isDone ? (
           <div className="flex items-center gap-1 text-primary font-bold">
-            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">schedule</span>
+            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">schedule</span>
             <span>Active</span>
           </div>
         ) : isDone ? (
-          <div className="flex items-center gap-1 text-slate-400">
+          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
             <span className="font-medium">
               {task.updatedAt ? `${format(new Date(task.updatedAt), 'MMM d')}` : 'Done'}
             </span>
           </div>
         ) : task.dueDate ? (
-          <div className="flex items-center gap-1 text-slate-400">
-            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">calendar_today</span>
+          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">calendar_today</span>
             <span className="font-medium">
               {format(new Date(task.dueDate), 'MMM d')}
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-1 text-slate-400">
-            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">calendar_today</span>
+          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">calendar_today</span>
             <span className="font-medium">No date</span>
           </div>
         )}
 
         {assigneeName && (
-          <Avatar className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isDone ? 'grayscale' : ''}`}>
+          <Avatar className={`h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0 ${isDone ? 'grayscale' : ''}`}>
             {assigneeAvatar && <AvatarImage src={assigneeAvatar} alt={assigneeName} />}
-            <AvatarFallback className="text-[8px] sm:text-[9px] bg-primary text-white">
+            <AvatarFallback className="text-[9px] sm:text-[10px] bg-primary text-white">
               {getInitials(assigneeName)}
             </AvatarFallback>
           </Avatar>

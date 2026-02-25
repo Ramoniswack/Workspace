@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, Clock, Target, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Trophy, Target, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface PerformanceMetrics {
@@ -57,16 +57,6 @@ export function PerformanceMetrics({ workspaceId, userId }: PerformanceMetricsPr
     }
   };
 
-  const formatTime = (seconds: number) => {
-    if (seconds === 0) return '-';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
-
   const getPerformanceColor = (rate: number) => {
     if (rate > 80) return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20';
     if (rate >= 60) return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20';
@@ -110,7 +100,7 @@ export function PerformanceMetrics({ workspaceId, userId }: PerformanceMetricsPr
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {/* Tasks Finished */}
               <div className="p-4 rounded-lg border bg-card">
                 <div className="flex items-center gap-2 mb-2">
@@ -118,15 +108,6 @@ export function PerformanceMetrics({ workspaceId, userId }: PerformanceMetricsPr
                   <span className="text-sm font-medium text-muted-foreground">Tasks Finished</span>
                 </div>
                 <p className="text-2xl font-bold">{myMetrics.totalTasksFinished}</p>
-              </div>
-
-              {/* Average Time */}
-              <div className="p-4 rounded-lg border bg-card">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm font-medium text-muted-foreground">Avg Time/Task</span>
-                </div>
-                <p className="text-2xl font-bold">{formatTime(myMetrics.averageTimePerTask)}</p>
               </div>
 
               {/* Success Rate */}
@@ -201,14 +182,10 @@ export function PerformanceMetrics({ workspaceId, userId }: PerformanceMetricsPr
                       </div>
 
                       {/* Metrics Grid */}
-                      <div className="grid grid-cols-3 gap-4 mt-3">
+                      <div className="grid grid-cols-2 gap-4 mt-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Tasks Done</p>
                           <p className="text-sm font-bold">{member.metrics.totalTasksFinished}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Avg Time</p>
-                          <p className="text-sm font-bold">{formatTime(member.metrics.averageTimePerTask)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Success Rate</p>

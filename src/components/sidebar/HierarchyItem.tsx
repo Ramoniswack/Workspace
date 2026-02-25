@@ -241,6 +241,20 @@ const getRoute = () => {
                     <Star className="h-4 w-4 mr-2" />
                     {isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                   </DropdownMenuItem>
+                  {canCreateContent && item.type === 'space' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          openModal('editSpace', item._id, 'space', item.name);
+                        }}
+                      >
+                        <MoreHorizontal className="h-4 w-4 mr-2" />
+                        Edit space
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   {canCreateContent && item.type !== 'list' && (
                     <>
                       <DropdownMenuSeparator />

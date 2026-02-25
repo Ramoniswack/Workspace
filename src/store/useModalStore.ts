@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ModalType = 'space' | 'folder' | 'list';
+export type ModalType = 'space' | 'folder' | 'list' | 'editSpace';
 export type ParentType = 'workspace' | 'space' | 'folder';
 
 interface ModalState {
