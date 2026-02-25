@@ -12,18 +12,10 @@ import {
   useSensors,
   closestCorners,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import confetti from 'canvas-confetti';
-import { Flag } from 'lucide-react';
+import { KanbanColumn } from './kanban/KanbanColumn';
+import { TaskCard } from './kanban/TaskCard';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -33,10 +25,10 @@ interface KanbanBoardProps {
 }
 
 const COLUMNS = [
-  { id: 'todo', title: 'TO DO', color: '#ef4444', bgColor: '#fef2f2' },
-  { id: 'inprogress', title: 'IN PROGRESS', color: '#f97316', bgColor: '#fff7ed' },
-  { id: 'review', title: 'REVIEW', color: '#3b82f6', bgColor: '#eff6ff' },
-  { id: 'done', title: 'DONE', color: '#22c55e', bgColor: '#f0fdf4' },
+  { id: 'todo', title: 'To Do', color: '#64748b', bgColor: '#f1f5f9' },
+  { id: 'inprogress', title: 'In Progress', color: '#135bec', bgColor: '#135bec1A' },
+  { id: 'review', title: 'In Review', color: '#8b5cf6', bgColor: '#f3e8ff' },
+  { id: 'done', title: 'Done', color: '#10b981', bgColor: '#d1fae5' },
 ] as const;
 
 export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, spaceMembers }: KanbanBoardProps) {
@@ -72,29 +64,60 @@ export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, spaceMembe
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
-    if (!over) {
-      setActiveId(null);
+    // Always clear active state first
+    setActiveId(null);
+    
+    if (!over || !canChangeStatus) {
+      console.log('[KanbanBoard] Drag cancelled - no drop target or no permission');
       return;
     }
 
     const taskId = active.id as string;
     const overId = over.id as string;
 
+    console.log('[KanbanBoard] Drag ended:', { taskId, overId });
+
+    // Find the task being dragged
+    const task = tasks.find((t) => t._id === taskId);
+    if (!task) {
+      console.log('[KanbanBoard] Task not found:', taskId);
+      return;
+    }
+
     // Check if dropped on a column
     const targetColumn = COLUMNS.find((col) => col.id === overId);
     if (targetColumn) {
-      const task = tasks.find((t) => t._id === taskId);
-      if (task && task.status !== targetColumn.id) {
+      console.log('[KanbanBoard] Dropped on column:', targetColumn.id, 'Current status:', task.status);
+      
+      if (task.status !== targetColumn.id) {
+        console.log('[KanbanBoard] Status change detected, calling onStatusChange');
+        // Update task status
         onStatusChange(taskId, targetColumn.id as Task['status']);
         
         // Confetti effect when task moved to done
         if (targetColumn.id === 'done') {
-          triggerConfetti();
+          setTimeout(() => {
+            triggerConfetti();
+          }, 100);
+        }
+      } else {
+        console.log('[KanbanBoard] Task already in this column, no change needed');
+      }
+    } else {
+      console.log('[KanbanBoard] Not dropped on a column, checking if dropped on another task');
+      // If dropped on another task, find which column that task is in
+      const targetTask = tasks.find((t) => t._id === overId);
+      if (targetTask && targetTask.status !== task.status) {
+        console.log('[KanbanBoard] Dropped on task in different column, moving to:', targetTask.status);
+        onStatusChange(taskId, targetTask.status);
+        
+        if (targetTask.status === 'done') {
+          setTimeout(() => {
+            triggerConfetti();
+          }, 100);
         }
       }
     }
-
-    setActiveId(null);
   };
 
   const triggerConfetti = () => {
@@ -139,7 +162,8 @@ export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, spaceMembe
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6 bg-[#f6f6f8] dark:bg-gray-950 min-h-[calc(100vh-200px)]">
+      {/* Kanban Board Container - Vertical on mobile, horizontal on desktop */}
+      <div className="flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-4 p-3 sm:p-4 md:p-6 h-auto md:h-[calc(100vh-280px)] overflow-visible md:overflow-hidden">
         {COLUMNS.map((column) => (
           <KanbanColumn
             key={column.id}
@@ -162,177 +186,5 @@ export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, spaceMembe
         ) : null}
       </DragOverlay>
     </DndContext>
-  );
-}
-
-interface KanbanColumnProps {
-  column: typeof COLUMNS[number];
-  tasks: Task[];
-  spaceMembers: any[];
-  canDrag: boolean;
-}
-
-function KanbanColumn({ column, tasks, spaceMembers, canDrag }: KanbanColumnProps) {
-  const { setNodeRef } = useSortable({
-    id: column.id,
-    data: {
-      type: 'column',
-    },
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className="flex flex-col bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden"
-    >
-      {/* Column Header */}
-      <div
-        className="px-4 py-3 border-b-4 flex items-center justify-between"
-        style={{ borderBottomColor: column.color }}
-      >
-        <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300">
-          {column.title}
-        </h3>
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
-          style={{ backgroundColor: column.bgColor, color: column.color }}
-        >
-          {tasks.length}
-        </div>
-      </div>
-
-      {/* Tasks */}
-      <SortableContext items={tasks.map((t) => t._id)} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
-          {tasks.map((task) => (
-            <TaskCard
-              key={task._id}
-              task={task}
-              spaceMembers={spaceMembers}
-              canDrag={canDrag}
-            />
-          ))}
-          {tasks.length === 0 && (
-            <div className="text-center py-8 text-gray-400 text-sm">
-              No tasks
-            </div>
-          )}
-        </div>
-      </SortableContext>
-    </div>
-  );
-}
-
-interface TaskCardProps {
-  task: Task;
-  spaceMembers: any[];
-  isDragging?: boolean;
-  isOverlay?: boolean;
-  canDrag?: boolean;
-}
-
-function TaskCard({ task, spaceMembers, isDragging, isOverlay, canDrag = true }: TaskCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: isSortableDragging,
-  } = useSortable({
-    id: task._id,
-    disabled: !canDrag,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isSortableDragging ? 0.5 : 1,
-  };
-
-  const priorityConfig = {
-    high: { color: '#ef4444', label: 'HIGH', bg: '#fef2f2' },
-    medium: { color: '#f97316', label: 'MED', bg: '#fff7ed' },
-    low: { color: '#22c55e', label: 'LOW', bg: '#f0fdf4' },
-  };
-
-  const priority = priorityConfig[task.priority || 'medium'];
-
-  const assignee = task.assignee
-    ? typeof task.assignee === 'string'
-      ? spaceMembers.find((m: any) => {
-          const memberId = typeof m.user === 'string' ? m.user : m.user?._id;
-          return memberId === task.assignee;
-        })
-      : task.assignee
-    : null;
-
-  const assigneeName = assignee
-    ? typeof assignee.user === 'string'
-      ? assignee.user
-      : assignee.user?.name || assignee.name || 'Unknown'
-    : null;
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  return (
-    <Card
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`
-        relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 
-        rounded-lg overflow-hidden cursor-grab active:cursor-grabbing
-        transition-all duration-200
-        ${isDragging || isOverlay ? 'shadow-2xl rotate-3 scale-105' : 'shadow-sm hover:shadow-md'}
-        ${!canDrag ? 'cursor-not-allowed opacity-60' : ''}
-      `}
-    >
-      {/* Priority Accent Bar */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1"
-        style={{ backgroundColor: priority.color }}
-      />
-
-      <div className="p-3 pl-4">
-        {/* Task Title */}
-        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3 line-clamp-2">
-          {task.title}
-        </h4>
-
-        {/* Bottom Row: Priority Badge + Assignee */}
-        <div className="flex items-center justify-between">
-          <Badge
-            className="text-xs font-medium px-2 py-0.5"
-            style={{
-              backgroundColor: priority.bg,
-              color: priority.color,
-              border: 'none',
-            }}
-          >
-            {priority.label}
-          </Badge>
-
-          {assigneeName && (
-            <Avatar className="w-6 h-6 border-2 border-white dark:border-gray-800">
-              <AvatarFallback
-                className="text-xs font-medium"
-                style={{ backgroundColor: priority.color, color: 'white' }}
-              >
-                {getInitials(assigneeName)}
-              </AvatarFallback>
-            </Avatar>
-          )}
-        </div>
-      </div>
-    </Card>
   );
 }

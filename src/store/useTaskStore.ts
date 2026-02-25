@@ -1,21 +1,17 @@
 import { create } from 'zustand';
 import { api } from '@/lib/axios';
 import { Task } from '@/types';
+import { toast } from 'sonner';
 
 interface TaskStore {
   tasks: Task[];
   loading: boolean;
   error: string | null;
-  
-  // Actions
   fetchTasks: (listId: string) => Promise<void>;
-  createTask: (listId: string, data: Partial<Task>) => Promise<Task>;
-  updateTask: (taskId: string, data: Partial<Task>) => Promise<Task>;
+  createTask: (listId: string, data: Partial<Task>) => Promise<Task | null>;
+  updateTask: (taskId: string, data: Partial<Task>) => Promise<Task | null>;
   deleteTask: (taskId: string) => Promise<void>;
-  bulkUpdateTasks: (taskIds: string[], data: Partial<Task>) => Promise<void>;
-  bulkDeleteTasks: (taskIds: string[]) => Promise<void>;
-  assignTask: (taskId: string, userId: string | null, taskName: string, assigneeName: string) => Promise<Task>;
-  updateTaskStatus: (taskId: string, status: 'todo' | 'inprogress' | 'review' | 'done' | 'cancelled', taskName: string) => Promise<Task>;
+  updateTaskStatus: (taskId: string, status: string, taskName: string) => Promise<void>;
   setTasks: (tasks: Task[]) => void;
   clearTasks: () => void;
 }
@@ -31,23 +27,70 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const response = await api.get(`/lists/${listId}/tasks`);
       set({ tasks: response.data.data, loading: false });
     } catch (error: any) {
-      set({ 
-        error: error.response?.data?.message || 'Failed to fetch tasks',
-        loading: false 
-      });
-      throw error;
+      set({ error: error.response?.data?.message || 'Failed to fetch tasks', loading: false });
     }
   },
 
   createTask: async (listId: string, data: Partial<Task>) => {
     try {
+      console.log('[TaskStore] Creating task with data:', data);
       const response = await api.post(`/lists/${listId}/tasks`, data);
       const newTask = response.data.data;
+      console.log('[TaskStore] Task created, response:', newTask);
       set({ tasks: [...get().tasks, newTask] });
+      toast.success("Task created successfully");
       return newTask;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to create task' });
-      throw error;
+      const msg = error.response?.data?.message || 'Failed to create task';
+      toast.error(msg);
+      return null;
+    }
+  },
+
+  updateTaskStatus: async (taskId: string, status: string, taskName: string) => {
+    const previousTasks = [...get().tasks];
+    
+    // Cast status to proper type
+    const taskStatus = status as Task['status'];
+    
+    console.log('[TaskStore] updateTaskStatus called:', { taskId, status: taskStatus });
+    
+    // 1. Optimistic Update (Instant UI move)
+    set({
+      tasks: get().tasks.map(task =>
+        task._id === taskId ? { ...task, status: taskStatus } : task
+      )
+    });
+    
+    console.log('[TaskStore] Optimistic update applied');
+
+    try {
+      console.log('[TaskStore] Sending PATCH request to /tasks/' + taskId);
+      const response = await api.patch(`/tasks/${taskId}`, { status: taskStatus });
+      
+      console.log('[TaskStore] API response received:', response.data);
+      
+      // Sync with real server data
+      set({
+        tasks: get().tasks.map(task =>
+          task._id === taskId ? response.data.data : task
+        )
+      });
+      
+      console.log('[TaskStore] State synced with server response');
+
+    } catch (error: any) {
+      // 2. Rollback on error
+      console.error('[TaskStore] Error updating task status, rolling back');
+      set({ tasks: previousTasks });
+      
+      console.error('[updateTaskStatus] Error:', error);
+      console.error('[updateTaskStatus] Error response:', error.response?.data);
+      
+      const errorMsg = error.response?.status === 403 
+        ? "Access Denied: You don't have permission to edit this task." 
+        : error.response?.data?.message || "Failed to change task status";
+      toast.error(errorMsg);
     }
   },
 
@@ -55,145 +98,24 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     try {
       const response = await api.patch(`/tasks/${taskId}`, data);
       const updatedTask = response.data.data;
-      set({
-        tasks: get().tasks.map(task =>
-          task._id === taskId ? updatedTask : task
-        )
-      });
+      set({ tasks: get().tasks.map(t => t._id === taskId ? updatedTask : t) });
       return updatedTask;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to update task' });
-      throw error;
+      toast.error(error.response?.data?.message || "Update failed");
+      return null;
     }
   },
 
   deleteTask: async (taskId: string) => {
     try {
       await api.delete(`/tasks/${taskId}`);
-      set({ tasks: get().tasks.filter(task => task._id !== taskId) });
+      set({ tasks: get().tasks.filter(t => t._id !== taskId) });
+      toast.success("Task deleted");
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to delete task' });
-      throw error;
-    }
-  },
-
-  bulkUpdateTasks: async (taskIds: string[], data: Partial<Task>) => {
-    try {
-      await Promise.all(
-        taskIds.map(taskId => api.patch(`/tasks/${taskId}`, data))
-      );
-      set({
-        tasks: get().tasks.map(task =>
-          taskIds.includes(task._id) ? { ...task, ...data } : task
-        )
-      });
-    } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to update tasks' });
-      throw error;
-    }
-  },
-
-  bulkDeleteTasks: async (taskIds: string[]) => {
-    try {
-      await Promise.all(
-        taskIds.map(taskId => api.delete(`/tasks/${taskId}`))
-      );
-      set({ tasks: get().tasks.filter(task => !taskIds.includes(task._id)) });
-    } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to delete tasks' });
-      throw error;
-    }
-  },
-
-  assignTask: async (taskId: string, userId: string | null, taskName: string, assigneeName: string) => {
-    try {
-      const response = await api.patch(`/tasks/${taskId}`, { assigneeId: userId });
-      const updatedTask = response.data.data;
-      
-      set({
-        tasks: get().tasks.map(task =>
-          task._id === taskId ? updatedTask : task
-        )
-      });
-
-      // Log activity - wrapped in try-catch to prevent blocking
-      try {
-        const { logActivity } = await import('./useActivityStore');
-        const currentUserId = localStorage.getItem('userId');
-        if (currentUserId) {
-          await logActivity({
-            userId: currentUserId,
-            action: userId ? `assigned task to ${assigneeName}` : 'unassigned task',
-            target: taskName,
-            type: 'update',
-            workspaceId: updatedTask.workspace,
-            spaceId: updatedTask.space,
-            listId: updatedTask.list,
-            taskId: updatedTask._id
-          });
-        }
-      } catch (activityError) {
-        console.error('Failed to log activity:', activityError);
-      }
-
-      return updatedTask;
-    } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to assign task' });
-      throw error;
-    }
-  },
-
-  updateTaskStatus: async (taskId: string, status: 'todo' | 'inprogress' | 'review' | 'done' | 'cancelled', taskName: string) => {
-    // Optimistic update - update UI immediately
-    const previousTasks = get().tasks;
-    set({
-      tasks: get().tasks.map(task =>
-        task._id === taskId ? { ...task, status } : task
-      )
-    });
-
-    try {
-      const response = await api.patch(`/tasks/${taskId}`, { status });
-      const updatedTask = response.data.data;
-      
-      set({
-        tasks: get().tasks.map(task =>
-          task._id === taskId ? updatedTask : task
-        )
-      });
-
-      // Log activity - wrapped in try-catch to prevent blocking
-      try {
-        const { logActivity } = await import('./useActivityStore');
-        const currentUserId = localStorage.getItem('userId');
-        if (currentUserId) {
-          await logActivity({
-            userId: currentUserId,
-            action: `changed status to ${status}`,
-            target: taskName,
-            type: 'update',
-            workspaceId: updatedTask.workspace,
-            spaceId: updatedTask.space,
-            listId: updatedTask.list,
-            taskId: updatedTask._id
-          });
-        }
-      } catch (activityError) {
-        console.error('Failed to log activity:', activityError);
-      }
-
-      return updatedTask;
-    } catch (error: any) {
-      // Revert optimistic update on error
-      set({ 
-        tasks: previousTasks,
-        error: error.response?.data?.message || 'Failed to update task status' 
-      });
-      throw error;
+      toast.error("Permission denied");
     }
   },
 
   setTasks: (tasks: Task[]) => set({ tasks }),
-  
   clearTasks: () => set({ tasks: [], error: null }),
 }));

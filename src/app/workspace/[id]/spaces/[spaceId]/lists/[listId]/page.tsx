@@ -47,6 +47,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 import { useTaskStore } from '@/store/useTaskStore';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useActivityStore } from '@/store/useActivityStore';
@@ -65,13 +68,13 @@ export default function ListView() {
   // Get userId from localStorage since it's not in the auth store
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
-  const { tasks, loading, fetchTasks, updateTask, deleteTask, createTask, bulkUpdateTasks, bulkDeleteTasks, assignTask, updateTaskStatus } = useTaskStore();
+  const { tasks, loading, fetchTasks, updateTask, deleteTask, createTask, updateTaskStatus } = useTaskStore();
   const { activities, loading: activitiesLoading, fetchActivities } = useActivityStore();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [space, setSpace] = useState<Space | null>(null);
   const [list, setList] = useState<List | null>(null);
-  const [view, setView] = useState<'list' | 'board' | 'calendar' | 'activity'>('list');
+  const [view, setView] = useState<'list' | 'board' | 'calendar' | 'activity'>('board');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -81,6 +84,7 @@ export default function ListView() {
     description: '',
     priority: 'medium' as Task['priority'],
     status: 'todo' as Task['status'],
+    deadline: undefined as Date | undefined,
   });
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
@@ -275,6 +279,8 @@ export default function ListView() {
         return;
       }
 
+      await updateTask(taskId, { assignee: assigneeId || undefined });
+      
       const member = space?.members?.find((m: any) => {
         const userId = typeof m.user === 'object' ? m.user._id : m.user;
         return userId === assigneeId;
@@ -284,7 +290,6 @@ export default function ListView() {
         ? (typeof member?.user === 'object' ? member.user.name : 'Unknown')
         : 'Unassigned';
 
-      await assignTask(taskId, assigneeId, task.title, assigneeName);
       toast.success(`Task ${assigneeId ? 'assigned to' : 'unassigned from'} ${assigneeName}`);
     } catch (error) {
       toast.error('Failed to assign task');
@@ -298,7 +303,21 @@ export default function ListView() {
     }
 
     try {
-      const task = await createTask(listId, newTaskData);
+      console.log('[CreateTask] newTaskData before conversion:', newTaskData);
+      console.log('[CreateTask] newTaskData.deadline type:', typeof newTaskData.deadline);
+      console.log('[CreateTask] newTaskData.deadline value:', newTaskData.deadline);
+      
+      // Convert deadline Date to ISO string for API
+      const taskData = {
+        ...newTaskData,
+        deadline: newTaskData.deadline ? newTaskData.deadline.toISOString() : undefined,
+      };
+      
+      console.log('[CreateTask] taskData after conversion:', taskData);
+      console.log('[CreateTask] taskData.deadline:', taskData.deadline);
+      console.log('[CreateTask] Creating task with data:', taskData);
+      const task = await createTask(listId, taskData);
+      console.log('[CreateTask] Task created:', task);
 
       setShowCreateModal(false);
       setNewTaskData({
@@ -306,15 +325,16 @@ export default function ListView() {
         description: '',
         priority: 'medium',
         status: 'todo',
+        deadline: undefined,
       });
-      toast.success('Task created successfully');
       
       // Refresh activities if on activity view
       if (view === 'activity') {
         fetchActivities({ listId });
       }
     } catch (error) {
-      toast.error('Failed to create task');
+      // Error toast is already handled in the store
+      console.error('[CreateTask] Error:', error);
     }
   };
 
@@ -324,15 +344,13 @@ export default function ListView() {
       if (!task) return;
 
       await deleteTask(taskId);
-
-      toast.success('Task deleted');
       
       // Refresh activities if on activity view
       if (view === 'activity') {
         fetchActivities({ listId });
       }
     } catch (error) {
-      toast.error('Failed to delete task');
+      // Error toast is already handled in the store
     }
   };
 
@@ -355,7 +373,8 @@ export default function ListView() {
     if (selectedTasks.length === 0) return;
 
     try {
-      await bulkDeleteTasks(selectedTasks);
+      // Delete tasks one by one
+      await Promise.all(selectedTasks.map(taskId => deleteTask(taskId)));
 
       setSelectedTasks([]);
       toast.success(`${selectedTasks.length} tasks deleted`);
@@ -373,7 +392,8 @@ export default function ListView() {
     if (selectedTasks.length === 0) return;
 
     try {
-      await bulkUpdateTasks(selectedTasks, { status: newStatus });
+      // Update tasks one by one
+      await Promise.all(selectedTasks.map(taskId => updateTask(taskId, { status: newStatus })));
 
       setSelectedTasks([]);
       toast.success(`${selectedTasks.length} tasks updated`);
@@ -415,9 +435,12 @@ export default function ListView() {
   };
 
   const canDeleteTask = (task: Task) => {
-    // Only owner, admin, or list members with FULL permission can delete
+    // Owner/Admin: Full access
     if (userRole === 'owner' || userRole === 'admin') return true;
+    
+    // List member with FULL permission can delete
     if (isListMember && listPermissionLevel === 'FULL') return true;
+    
     return false;
   };
 
@@ -425,8 +448,8 @@ export default function ListView() {
     // Owner/Admin: Full access
     if (userRole === 'owner' || userRole === 'admin') return true;
     
-    // List member with EDIT or FULL permission can create tasks
-    if (isListMember && (listPermissionLevel === 'EDIT' || listPermissionLevel === 'FULL')) return true;
+    // Only list members with FULL permission can create tasks
+    if (isListMember && listPermissionLevel === 'FULL') return true;
     
     return false;
   };
@@ -436,65 +459,65 @@ export default function ListView() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-3 sm:py-4">
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => router.push('/dashboard')}
-              className="hover:text-foreground transition-colors"
+              className="hover:text-foreground transition-colors truncate"
             >
               {workspace?.name || 'Workspace'}
             </button>
             <span>/</span>
             <button
               onClick={() => router.push(`/workspace/${workspaceId}`)}
-              className="hover:text-foreground transition-colors"
+              className="hover:text-foreground transition-colors truncate"
             >
               {space?.name || 'Space'}
             </button>
             <span>/</span>
-            <span className="text-foreground font-medium">{list?.name || 'List'}</span>
+            <span className="text-foreground font-medium truncate">{list?.name || 'List'}</span>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               <button
                 onClick={() => router.push(`/workspace/${workspaceId}/spaces/${spaceId}`)}
-                className="p-2 hover:bg-accent rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 hover:bg-accent rounded-lg transition-colors flex-shrink-0"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold">{list?.name}</h1>
-                <p className="text-sm text-muted-foreground">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-2xl font-bold truncate">{list?.name}</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               {/* List Members Display */}
-              <div className="flex items-center gap-2 px-3 py-2 bg-accent/50 rounded-lg">
-                <Users className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{listMembers.length}</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-accent/50 rounded-lg flex-shrink-0">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+                <span className="text-xs sm:text-sm font-medium">{listMembers.length}</span>
                 <div className="flex -space-x-2 ml-1">
                   {listMembers.slice(0, 3).map((member: any, idx: number) => {
                     const user = typeof member.user === 'object' ? member.user : member;
                     return (
-                      <Avatar key={idx} className="w-7 h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110" onClick={() => setShowListMemberManagement(true)}>
+                      <Avatar key={idx} className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110" onClick={() => setShowListMemberManagement(true)}>
                         <AvatarImage src={user?.avatar} />
-                        <AvatarFallback className="text-xs bg-blue-600 text-white">
+                        <AvatarFallback className="text-[10px] sm:text-xs bg-blue-600 text-white">
                           {user ? getInitials(user.name) : '?'}
                         </AvatarFallback>
                       </Avatar>
                     );
                   })}
                   {listMembers.length > 3 && (
-                    <Avatar className="w-7 h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110 bg-muted" onClick={() => setShowListMemberManagement(true)}>
-                      <AvatarFallback className="text-xs font-semibold">
+                    <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110 bg-muted" onClick={() => setShowListMemberManagement(true)}>
+                      <AvatarFallback className="text-[10px] sm:text-xs font-semibold">
                         +{listMembers.length - 3}
                       </AvatarFallback>
                     </Avatar>
@@ -507,9 +530,9 @@ export default function ListView() {
                 <>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <MoreHorizontal className="w-4 h-4" />
-                        <span className="ml-2 hidden sm:inline">Actions</span>
+                      <Button variant="outline" size="sm" className="h-8 sm:h-9">
+                        <MoreHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="ml-1.5 sm:ml-2 hidden sm:inline text-xs sm:text-sm">Actions</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
@@ -582,9 +605,9 @@ export default function ListView() {
               {canCreateTask() && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
-                    <Button className="bg-blue-600 hover:bg-blue-700">
-                      <Plus className="w-4 h-4 mr-2" />
-                      New Task
+                    <Button className="bg-blue-600 hover:bg-blue-700 h-8 sm:h-9 text-xs sm:text-sm flex-shrink-0">
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">New Task</span>
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
@@ -655,6 +678,16 @@ export default function ListView() {
                           </Select>
                         </div>
                       </div>
+                      <div>
+                        <Label htmlFor="deadline">Deadline (Optional)</Label>
+                        <Input
+                          id="deadline"
+                          type="datetime-local"
+                          value={newTaskData.deadline ? new Date(newTaskData.deadline.getTime() - newTaskData.deadline.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                          onChange={(e) => setNewTaskData({ ...newTaskData, deadline: e.target.value ? new Date(e.target.value) : undefined })}
+                          className="w-full"
+                        />
+                      </div>
                       <div className="flex gap-3">
                         <Button
                           variant="outline"
@@ -675,50 +708,54 @@ export default function ListView() {
           </div>
 
           {/* View Tabs */}
-          <div className="flex items-center gap-1 mt-4 bg-muted p-1 rounded-lg w-fit">
-            <button
-              onClick={() => setView('list')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                view === 'list'
-                  ? 'bg-background shadow-sm'
-                  : 'hover:bg-background/50'
-              }`}
-            >
-              <LayoutList className="w-4 h-4" />
-              List
-            </button>
+          <div className="flex items-center gap-0.5 sm:gap-1 mt-3 sm:mt-4 bg-muted p-0.5 sm:p-1 rounded-lg w-full sm:w-fit overflow-x-auto">
             <button
               onClick={() => setView('board')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              title="Kanban Board View"
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
                 view === 'board'
                   ? 'bg-background shadow-sm'
                   : 'hover:bg-background/50'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
-              Board
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Kanban</span>
+            </button>
+            <button
+              onClick={() => setView('list')}
+              title="List View"
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
+                view === 'list'
+                  ? 'bg-background shadow-sm'
+                  : 'hover:bg-background/50'
+              }`}
+            >
+              <LayoutList className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">List</span>
             </button>
             <button
               onClick={() => setView('calendar')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              title="Calendar View"
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
                 view === 'calendar'
                   ? 'bg-background shadow-sm'
                   : 'hover:bg-background/50'
               }`}
             >
-              <CalendarIcon className="w-4 h-4" />
-              Calendar
+              <CalendarIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Calendar</span>
             </button>
             <button
               onClick={() => setView('activity')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              title="Activity Log View"
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
                 view === 'activity'
                   ? 'bg-background shadow-sm'
                   : 'hover:bg-background/50'
               }`}
             >
-              <Activity className="w-4 h-4" />
-              Activity Log
+              <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Activity</span>
             </button>
           </div>
         </div>
@@ -741,7 +778,7 @@ export default function ListView() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8 overflow-x-hidden">
         {view === 'list' && (
           <div className="space-y-6">
             {(['todo', 'inprogress', 'review', 'done', 'cancelled'] as const).map((status) => (
@@ -770,7 +807,7 @@ export default function ListView() {
           <KanbanBoard
             tasks={filteredTasks}
             onStatusChange={handleStatusChange}
-            canChangeStatus={canEditTask({ _id: '', title: '', status: 'todo', priority: 'medium' } as Task)}
+            canChangeStatus={!isReadOnly && (userRole === 'owner' || userRole === 'admin' || (isListMember && (listPermissionLevel === 'FULL' || listPermissionLevel === 'EDIT')))}
             spaceMembers={space?.members || []}
           />
         )}

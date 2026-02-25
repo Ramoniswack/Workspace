@@ -62,6 +62,9 @@ export interface Task {
   assignee?: string | User;
   assigneeId?: string | null;
   dueDate?: string;
+  deadline?: string;
+  completedAt?: string;
+  completedBy?: string | User;
   tags?: string[];
   order: number;
   isDeleted: boolean;

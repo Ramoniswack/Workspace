@@ -86,13 +86,13 @@ export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId
   const getIcon = () => {
     switch (item.type) {
       case 'space':
-        return <Square className="h-4 w-4 text-blue-500" />;
+        return <Square className="h-4 w-4 text-blue-500 dark:text-blue-400" />;
       case 'folder':
-        return <Folder className="h-4 w-4 text-amber-500" />;
+        return <Folder className="h-4 w-4 text-amber-500 dark:text-amber-400" />;
       case 'list':
-        return <Hash className="h-4 w-4 text-slate-500" />;
+        return <Hash className="h-4 w-4 text-slate-500 dark:text-slate-400" />;
       default:
-        return <List className="h-4 w-4 text-slate-500" />;
+        return <List className="h-4 w-4 text-slate-500 dark:text-slate-400" />;
     }
   };
 
@@ -162,25 +162,25 @@ const getRoute = () => {
           href={route}
           className={cn(
             'flex items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150',
-            'hover:bg-slate-100',
-            isActive && 'bg-blue-50 text-blue-700 font-medium hover:bg-blue-100',
-            !isActive && 'text-slate-700'
+            'hover:bg-slate-100 dark:hover:bg-slate-800',
+            isActive && 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40',
+            !isActive && 'text-slate-700 dark:text-white'
           )}
         >
           {/* Chevron - Only show if has children */}
           <button
             onClick={handleToggle}
             className={cn(
-              'flex items-center justify-center h-4 w-4 rounded hover:bg-slate-200 transition-colors',
+              'flex items-center justify-center h-4 w-4 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors',
               !hasChildren && 'invisible'
             )}
           >
             {hasChildren && (
               <>
                 {isExpanded ? (
-                  <ChevronDown className="h-3 w-3 text-slate-600" />
+                  <ChevronDown className="h-3 w-3 text-slate-600 dark:text-slate-300" />
                 ) : (
-                  <ChevronRight className="h-3 w-3 text-slate-600" />
+                  <ChevronRight className="h-3 w-3 text-slate-600 dark:text-slate-300" />
                 )}
               </>
             )}

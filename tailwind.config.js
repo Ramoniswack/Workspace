@@ -18,9 +18,11 @@ module.exports = {
   				'700': '#6d28d9',
   				'800': '#5b21b6',
   				'900': '#4c1d95',
-  				DEFAULT: 'hsl(var(--primary))',
+  				DEFAULT: '#135bec',
   				foreground: 'hsl(var(--primary-foreground))'
   			},
+  			'background-light': '#f6f6f8',
+  			'background-dark': '#101622',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -58,10 +60,14 @@ module.exports = {
   				'5': 'hsl(var(--chart-5))'
   			}
   		},
+  		fontFamily: {
+  			display: ['Inter', 'sans-serif'],
+  		},
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			DEFAULT: '0.25rem',
+  			lg: '0.5rem',
+  			xl: '0.75rem',
+  			full: '9999px',
   		}
   	}
   },

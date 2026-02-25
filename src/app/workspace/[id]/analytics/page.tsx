@@ -22,6 +22,7 @@ import {
     Announcements,
     StickyNotes,
     WorkspaceActivity,
+    PerformanceMetrics,
 } from '@/components/analytics';
 import { Task } from '@/types';
 
@@ -158,13 +159,19 @@ export default function AnalyticsPage() {
             <main className="max-w-[1440px] mx-auto px-6 py-8">
                 {/* Header Actions */}
                 <div className="flex justify-end gap-3 mb-8">
+                    {isAdmin && (
+                        <Button 
+                            variant="outline" 
+                            className="gap-2"
+                            onClick={() => window.location.href = `/workspace/${workspaceId}/time-tracking`}
+                        >
+                            <BarChart3 className="w-4 h-4" />
+                            Time Tracking
+                        </Button>
+                    )}
                     <Button variant="outline" className="gap-2">
                         <Calendar className="w-4 h-4" />
                         Last {dateFilter} Days
-                    </Button>
-                    <Button className="gap-2">
-                        <Download className="w-4 h-4" />
-                        Download Report
                     </Button>
                 </div>
 
@@ -215,7 +222,10 @@ export default function AnalyticsPage() {
                     <WorkspaceActivity workspaceId={workspaceId} userId={userId} />
                 </div>
 
-                <TeamPerformanceTable members={members} tasks={tasks} searchQuery="" />
+                {/* Performance Metrics */}
+                <div className="mb-8">
+                    <PerformanceMetrics workspaceId={workspaceId} userId={userId} />
+                </div>
             </main>
         </div>
     );

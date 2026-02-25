@@ -68,7 +68,7 @@ export function Header() {
           </Button>
           
           <div className="flex items-center gap-2">
-            <h1 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">Tasks</h1>
+            <h1 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">TaskFlow</h1>
           </div>
         </div>
 

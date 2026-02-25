@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { initializeSocket, joinWorkspace } from '@/lib/socket';
+import "react-day-picker/dist/style.css";
 
 export default function WorkspaceLayout({
   children,

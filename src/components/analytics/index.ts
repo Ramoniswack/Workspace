@@ -9,3 +9,4 @@ export { YourTasks } from './YourTasks';
 export { Announcements } from './Announcements';
 export { StickyNotes } from './StickyNotes';
 export { WorkspaceActivity } from './WorkspaceActivity';
+export { PerformanceMetrics } from './PerformanceMetrics';

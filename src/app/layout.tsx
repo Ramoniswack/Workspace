@@ -11,8 +11,9 @@ import GlobalTimer from '@/components/layout/GlobalTimer'
 import { PageLoadingIndicator } from '@/components/layout/PageLoadingIndicator'
 import { Toaster } from 'sonner'
 import { usePathname } from 'next/navigation'
+import Head from 'next/head'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export default function RootLayout({
   children,
@@ -29,7 +30,13 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-background text-foreground`}>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className={`${inter.className} ${inter.variable} bg-background text-foreground font-display`}>
         <Providers>
           <SearchProvider>
             {/* Page Loading Indicator */}

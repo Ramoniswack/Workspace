@@ -405,9 +405,9 @@ export function ClickUpSidebar() {
         </div>
 
         {/* Main Sidebar Content - Reduced Width */}
-        <div className="w-[240px] bg-white dark:bg-[#1a1a1a] border-r border-slate-200 dark:border-[#262626] flex flex-col">
+        <div className="w-[240px] bg-white dark:bg-[#1a1a1a] border-r border-slate-200 dark:border-slate-800 flex flex-col">
           {/* Workspace Header */}
-          <div className="p-3 border-b border-slate-200 dark:border-[#262626]">
+          <div className="p-3 border-b border-slate-200 dark:border-slate-800">
             <button
               onClick={handleWorkspaceClick}
               className="flex items-center gap-2 w-full hover:bg-slate-50 dark:hover:bg-[#262626] rounded-lg p-2 transition-colors"
@@ -459,7 +459,7 @@ export function ClickUpSidebar() {
                         'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors',
                         pathname === `/workspace/${workspaceId}/chat`
                           ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       )}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
@@ -471,7 +471,7 @@ export function ClickUpSidebar() {
                         'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors',
                         pathname === `/workspace/${workspaceId}/inbox`
                           ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       )}
                     >
                       <Inbox className="w-3.5 h-3.5" />
@@ -483,7 +483,7 @@ export function ClickUpSidebar() {
                         'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors',
                         pathname?.includes('/docs')
                           ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       )}
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -495,7 +495,7 @@ export function ClickUpSidebar() {
                         'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors relative',
                         pathname === '/notifications'
                           ? 'bg-slate-100 dark:bg-[#262626] text-slate-900 dark:text-white font-medium'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#262626]'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       )}
                     >
                       <Bell className="w-3.5 h-3.5" />
@@ -583,8 +583,8 @@ export function ClickUpSidebar() {
           </ScrollArea>
 
           {/* User Profile */}
-          <div className="p-2 border-t border-slate-200 dark:border-[#262626]">
-            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-[#262626] rounded-md transition-colors">
+          <div className="p-2 border-t border-slate-200 dark:border-slate-800">
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md transition-colors">
               <Avatar className="h-7 w-7 flex-shrink-0">
                 {userAvatar ? (
                   <AvatarImage src={userAvatar} alt={userName} />

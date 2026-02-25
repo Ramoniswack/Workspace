@@ -1,61 +1,37 @@
 'use client';
 
-import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Calendar, AlertCircle, User, GripVertical } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useTaskSidebarStore } from '@/store/useTaskSidebarStore';
-
-interface Task {
-  _id: string;
-  title: string;
-  description?: string;
-  status: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: string;
-  assignee?: {
-    _id: string;
-    name: string;
-    email: string;
-  };
-}
+import { Task } from '@/types';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { format } from 'date-fns';
 
 interface TaskCardProps {
   task: Task;
+  spaceMembers: any[];
   isDragging?: boolean;
+  isOverlay?: boolean;
+  canDrag?: boolean;
+  columnId?: string;
 }
 
-const priorityConfig = {
-  low: {
-    color: 'bg-slate-500',
-    textColor: 'text-slate-700',
-    bgColor: 'bg-slate-50',
-    label: 'Low',
-  },
-  medium: {
-    color: 'bg-blue-500',
-    textColor: 'text-blue-700',
-    bgColor: 'bg-blue-50',
-    label: 'Medium',
-  },
-  high: {
-    color: 'bg-orange-500',
-    textColor: 'text-orange-700',
-    bgColor: 'bg-orange-50',
-    label: 'High',
-  },
-  urgent: {
-    color: 'bg-red-500',
-    textColor: 'text-red-700',
-    bgColor: 'bg-red-50',
-    label: 'Urgent',
-  },
-};
+export function TaskCard({
+  task,
+  spaceMembers,
+  isDragging,
+  isOverlay,
+  canDrag = true,
+  columnId,
+}: TaskCardProps) {
+  // Debug logging
+  if (task.deadline) {
+    console.log('[TaskCard] Task has deadline:', { 
+      taskId: task._id, 
+      title: task.title,
+      deadline: task.deadline 
+    });
+  }
 
-export function TaskCard({ task, isDragging }: TaskCardProps) {
-  const { openTask } = useTaskSidebarStore();
-  
   const {
     attributes,
     listeners,
@@ -63,105 +39,164 @@ export function TaskCard({ task, isDragging }: TaskCardProps) {
     transform,
     transition,
     isDragging: isSortableDragging,
-  } = useSortable({ id: task._id });
+  } = useSortable({
+    id: task._id,
+    disabled: !canDrag,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
-  const priority = priorityConfig[task.priority] || priorityConfig.medium;
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
-
-  const handleClick = (e: React.MouseEvent) => {
-    // Don't open sidebar if clicking on drag handle
-    if ((e.target as HTMLElement).closest('button[data-drag-handle]')) {
-      return;
-    }
-    openTask(task._id);
+  const priorityConfig = {
+    urgent: { label: 'Urgent', color: '#ef4444', bg: '#fee2e2' },
+    high: { label: 'High', color: '#f97316', bg: '#ffedd5' },
+    medium: { label: 'Medium', color: '#3b82f6', bg: '#dbeafe' },
+    low: { label: 'Low', color: '#10b981', bg: '#d1fae5' },
   };
+
+  const priority = priorityConfig[task.priority || 'medium'];
+
+  const assignee = task.assignee
+    ? typeof task.assignee === 'string'
+      ? spaceMembers.find((m: any) => {
+          const memberId = typeof m.user === 'string' ? m.user : m.user?._id;
+          return memberId === task.assignee;
+        })
+      : task.assignee
+    : null;
+
+  const assigneeName = assignee
+    ? typeof assignee.user === 'string'
+      ? assignee.user
+      : assignee.user?.name || assignee.name || 'Unknown'
+    : null;
+
+  const assigneeAvatar = assignee
+    ? typeof assignee.user === 'string'
+      ? null
+      : assignee.user?.avatar || assignee.avatar
+    : null;
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const isInProgress = columnId === 'inprogress';
+  const isDone = columnId === 'done';
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      onClick={handleClick}
-      className={cn(
-        'bg-white rounded-lg border border-slate-200 p-3 mb-2 cursor-pointer',
-        'hover:shadow-md transition-shadow duration-200',
-        'group',
-        (isDragging || isSortableDragging) && 'opacity-50'
-      )}
+      {...attributes}
+      {...listeners}
+      className={`
+        w-full bg-white dark:bg-slate-800 p-2.5 sm:p-3 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700/50 
+        hover:shadow-md transition-all cursor-grab
+        ${isInProgress ? 'border-l-4 border-l-primary' : ''}
+        ${isDone ? 'bg-white/60 dark:bg-slate-800/60 opacity-80' : ''}
+        ${isDragging || isOverlay ? 'shadow-2xl rotate-2 scale-105 opacity-90' : ''}
+        ${isSortableDragging ? 'opacity-50' : ''}
+        ${!canDrag ? 'cursor-not-allowed opacity-60' : ''}
+      `}
     >
-      {/* Drag Handle & Title */}
-      <div className="flex items-start gap-2 mb-2">
-        <button
-          {...attributes}
-          {...listeners}
-          data-drag-handle
-          className="mt-0.5 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+      {/* Header: Priority Badge + Status Icon */}
+      <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+        <span
+          className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+          style={{
+            backgroundColor: priority.bg,
+            color: priority.color,
+          }}
         >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <h3 className="flex-1 text-sm font-medium text-slate-900 line-clamp-2">
-          {task.title}
-        </h3>
+          {priority.label}
+        </span>
+        {isDone && (
+          <span className="material-symbols-outlined text-emerald-500 text-[14px] sm:text-[16px]">
+            check_circle
+          </span>
+        )}
       </div>
 
-      {/* Description (if exists) */}
-      {task.description && (
-        <p className="text-xs text-slate-600 mb-2 line-clamp-2 ml-6">
-          {task.description}
-        </p>
-      )}
+      {/* Task Title */}
+      <h4
+        className={`font-semibold leading-tight mb-1.5 sm:mb-2 text-[11px] sm:text-xs line-clamp-2 ${
+          isDone
+            ? 'text-slate-500 dark:text-slate-400 line-through'
+            : 'text-slate-900 dark:text-slate-50'
+        }`}
+      >
+        {task.title}
+      </h4>
 
-      {/* Footer: Priority, Due Date, Assignee */}
-      <div className="flex items-center justify-between ml-6">
-        <div className="flex items-center gap-2">
-          {/* Priority Badge */}
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-              priority.bgColor,
-              priority.textColor
-            )}
-          >
-            <AlertCircle className="h-3 w-3" />
-            {priority.label}
-          </span>
+      {/* Footer: Deadline/Status + Avatar */}
+      <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
+        {task.deadline ? (
+          (() => {
+            const now = new Date();
+            const deadline = new Date(task.deadline);
+            const isOverdue = now > deadline && !isDone;
+            const hoursUntilDeadline = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60);
+            const isApproaching = hoursUntilDeadline > 0 && hoursUntilDeadline < 24 && !isDone;
+            const completedOnTime = isDone && task.completedAt && new Date(task.completedAt) <= deadline;
 
-          {/* Due Date */}
-          {task.dueDate && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs',
-                isOverdue
-                  ? 'bg-red-50 text-red-700 font-medium'
-                  : 'bg-slate-50 text-slate-600'
-              )}
-            >
-              <Calendar className="h-3 w-3" />
-              {new Date(task.dueDate).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })}
-            </span>
-          )}
-        </div>
-
-        {/* Assignee Avatar */}
-        {task.assignee && (
-          <div
-            className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white text-xs font-medium"
-            title={task.assignee.name}
-          >
-            {task.assignee.name
-              .split(' ')
-              .map((n) => n[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2)}
+            return (
+              <div className={`flex items-center gap-1 font-medium ${
+                isOverdue ? 'text-red-600 dark:text-red-400' :
+                isApproaching ? 'text-amber-600 dark:text-amber-400' :
+                completedOnTime ? 'text-emerald-600 dark:text-emerald-400' :
+                'text-slate-400'
+              }`}>
+                <span className="material-symbols-outlined text-[12px] sm:text-[14px]">
+                  {isOverdue ? 'error' : completedOnTime ? 'check_circle' : 'schedule'}
+                </span>
+                <span>
+                  {isOverdue ? 'Overdue' : 
+                   completedOnTime ? 'On time' :
+                   format(deadline, 'MMM d, h:mm a')}
+                </span>
+              </div>
+            );
+          })()
+        ) : isInProgress && !isDone ? (
+          <div className="flex items-center gap-1 text-primary font-bold">
+            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">schedule</span>
+            <span>Active</span>
           </div>
+        ) : isDone ? (
+          <div className="flex items-center gap-1 text-slate-400">
+            <span className="font-medium">
+              {task.updatedAt ? `${format(new Date(task.updatedAt), 'MMM d')}` : 'Done'}
+            </span>
+          </div>
+        ) : task.dueDate ? (
+          <div className="flex items-center gap-1 text-slate-400">
+            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">calendar_today</span>
+            <span className="font-medium">
+              {format(new Date(task.dueDate), 'MMM d')}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 text-slate-400">
+            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">calendar_today</span>
+            <span className="font-medium">No date</span>
+          </div>
+        )}
+
+        {assigneeName && (
+          <Avatar className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isDone ? 'grayscale' : ''}`}>
+            {assigneeAvatar && <AvatarImage src={assigneeAvatar} alt={assigneeName} />}
+            <AvatarFallback className="text-[8px] sm:text-[9px] bg-primary text-white">
+              {getInitials(assigneeName)}
+            </AvatarFallback>
+          </Avatar>
         )}
       </div>
     </div>
