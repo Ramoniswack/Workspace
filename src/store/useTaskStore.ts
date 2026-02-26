@@ -39,8 +39,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       toast.success("Task created successfully");
       return newTask;
     } catch (error: any) {
-      const msg = error.response?.data?.message || 'Failed to create task';
-      toast.error(msg);
+      // Check for task limit error
+      if (error.response?.data?.code === 'TASK_LIMIT_REACHED') {
+        toast.error(error.response?.data?.message || 'Task limit reached. Please upgrade your plan to create more tasks.');
+      } else {
+        const msg = error.response?.data?.message || 'Failed to create task';
+        toast.error(msg);
+      }
       return null;
     }
   },

@@ -16,8 +16,8 @@ import {
   BarChart3,
   FileText,
   MoreHorizontal,
-  UserPlus,
   MessageSquare,
+  Palette,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/useUIStore';
@@ -32,17 +32,28 @@ import { EditSpaceModal } from '@/components/modals/EditSpaceModal';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/axios';
+import UpgradeButton from '@/components/subscription/UpgradeButton';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 export function ClickUpSidebar() {
   const pathname = usePathname();
   const params = useParams();
   const { favoriteIds, isSidebarOpen } = useUIStore();
   const { openModal, setOnSuccess } = useModalStore();
-  const { can } = usePermissions();
+  const { can, isAdmin, isOwner } = usePermissions();
   const { setWorkspaceContext } = useWorkspaceContext();
   const { unreadCount } = useNotificationStore();
   const { accentColor } = useThemeStore();
+  const { subscription } = useSubscription();
+  const { whatsappNumber } = useSystemSettings();
 
   // Use workspace store instead of local state
   const { hierarchy, loading, error, setHierarchy, setLoading, setError } = useWorkspaceStore();
@@ -282,12 +293,6 @@ export function ClickUpSidebar() {
     }
   };
 
-  const handleInvite = () => {
-    if (typeof window !== 'undefined' && workspaceId) {
-      window.location.href = `/workspace/${workspaceId}/settings/members`;
-    }
-  };
-
   // Don't render if not in workspace or on dashboard
   if (!workspaceId || pathname === '/dashboard') {
     return null;
@@ -368,42 +373,38 @@ export function ClickUpSidebar() {
               </span>
             </Link>
 
-            <button
-              className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
-              title="More"
-            >
-              <MoreHorizontal
-                className="w-5 h-5"
-                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
-              />
-              <span
-                className="text-[9px] font-medium"
-                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
-              >
-                More
-              </span>
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
+                  title="More"
+                >
+                  <MoreHorizontal
+                    className="w-5 h-5"
+                    style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+                  />
+                  <span
+                    className="text-[9px] font-medium"
+                    style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
+                  >
+                    More
+                  </span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem>
+                  <Palette className="h-4 w-4 mr-2" />
+                  Customize
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {/* Bottom Actions */}
-          <div className="flex flex-col gap-2 w-full px-2 mt-auto">
-            <button
-              onClick={handleInvite}
-              className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
-              title="Invite to Workspace"
-            >
-              <UserPlus
-                className="w-5 h-5"
-                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
-              />
-              <span
-                className="text-[9px] font-medium text-center"
-                style={{ color: themeColor === '#f8fafc' ? '#1f2937' : '#ffffff' }}
-              >
-                Invite
-              </span>
-            </button>
-          </div>
+
         </div>
 
         {/* Main Sidebar Content - Reduced Width */}
@@ -583,6 +584,16 @@ export function ClickUpSidebar() {
               </div>
             )}
           </ScrollArea>
+
+          {/* Upgrade Button - Only show for non-paid users who are admin/owner */}
+          {subscription && !subscription.isPaid && (isAdmin() || isOwner()) && (
+            <div className="px-3 py-2 border-t border-slate-200 dark:border-slate-800">
+              <UpgradeButton 
+                workspaceName={hierarchy?.workspaceName || 'Workspace'}
+                whatsappNumber={whatsappNumber}
+              />
+            </div>
+          )}
 
           {/* User Profile */}
           <div className="p-2 border-t border-slate-200 dark:border-slate-800">

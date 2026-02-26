@@ -6,6 +6,9 @@ import { api } from '@/lib/axios';
 import { usePermissions } from '@/store/useAuthStore';
 import { getSocket } from '@/lib/socket';
 import { toast } from 'sonner';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
+import UpgradeModal from '@/components/subscription/UpgradeModal';
 import {
   ArrowLeft,
   Loader2,
@@ -58,6 +61,13 @@ export default function MembersPage() {
   const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'guest'>('member');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [maxAdmins, setMaxAdmins] = useState<number>(1);
+  const [currentAdminCount, setCurrentAdminCount] = useState<number>(0);
+
+  // Subscription state
+  const { canInviteMember } = useSubscription();
+  const { whatsappNumber } = useSystemSettings();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -105,8 +115,20 @@ export default function MembersPage() {
   const fetchMembers = async () => {
     try {
       setError(null);
-      const response = await api.get(`/workspaces/${workspaceId}/members`);
-      setMembers(response.data.data);
+      const [membersRes, workspaceRes] = await Promise.all([
+        api.get(`/workspaces/${workspaceId}/members`),
+        api.get(`/workspaces/${workspaceId}`)
+      ]);
+      
+      setMembers(membersRes.data.data);
+      
+      // Get max admins from owner's subscription
+      const maxAdminsLimit = workspaceRes.data.subscription?.plan?.features?.maxAdmins || 1;
+      setMaxAdmins(maxAdminsLimit);
+      
+      // Count current admins
+      const adminCount = membersRes.data.data.filter((m: Member) => m.role === 'admin').length;
+      setCurrentAdminCount(adminCount);
     } catch (error: any) {
       console.error('Failed to fetch members:', error);
       setError(error.response?.data?.message || 'Failed to load members');
@@ -116,6 +138,19 @@ export default function MembersPage() {
   };
 
   const handleRoleChange = async (userId: string, newRole: string) => {
+    // Check if changing to admin and limit is reached
+    if (newRole === 'admin') {
+      const currentMember = members.find(m => m._id === userId);
+      if (currentMember && currentMember.role !== 'admin') {
+        // This would be a new admin
+        if (maxAdmins !== -1 && currentAdminCount >= maxAdmins) {
+          toast.error(`You've reached your admin limit (${maxAdmins}). Upgrade your plan to add more admins and expand your team's management capabilities.`);
+          setShowUpgradeModal(true);
+          return;
+        }
+      }
+    }
+
     try {
       setUpdating(userId);
       setError(null);
@@ -130,9 +165,20 @@ export default function MembersPage() {
           member._id === userId ? { ...member, role: newRole as any } : member
         )
       );
+      
+      // Recalculate admin count
+      const updatedMembers = members.map((member) =>
+        member._id === userId ? { ...member, role: newRole as any } : member
+      );
+      const newAdminCount = updatedMembers.filter(m => m.role === 'admin').length;
+      setCurrentAdminCount(newAdminCount);
+      
+      toast.success('Member role updated successfully');
     } catch (error: any) {
       console.error('Failed to update role:', error);
-      setError(error.response?.data?.message || 'Failed to update role');
+      const errorMessage = error.response?.data?.message || 'Failed to update role';
+      toast.error(errorMessage);
+      setError(errorMessage);
     } finally {
       setUpdating(null);
     }
@@ -157,6 +203,14 @@ export default function MembersPage() {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
 
+    // Check member limit before inviting
+    const currentMemberCount = members.length;
+    if (!canInviteMember(currentMemberCount)) {
+      setShowUpgradeModal(true);
+      setShowInviteModal(false);
+      return;
+    }
+
     try {
       setInviting(true);
       setError(null);
@@ -176,7 +230,17 @@ export default function MembersPage() {
       fetchMembers();
     } catch (error: any) {
       console.error('Failed to invite member:', error);
-      setError(error.response?.data?.message || 'Failed to invite member');
+      
+      // Check for member limit error from backend
+      if (error.response?.data?.code === 'MEMBER_LIMIT_REACHED') {
+        toast.error(error.response?.data?.message || 'Member limit reached. Please upgrade your plan.');
+        setShowUpgradeModal(true);
+        setShowInviteModal(false);
+      } else {
+        const errorMessage = error.response?.data?.message || 'Failed to invite member';
+        toast.error(errorMessage);
+        setError(errorMessage);
+      }
     } finally {
       setInviting(false);
     }
@@ -477,6 +541,25 @@ export default function MembersPage() {
                 <p className="text-sm text-muted-foreground">
                   Can create/delete spaces, invite/remove members, and manage settings
                 </p>
+                {maxAdmins !== -1 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      currentAdminCount >= maxAdmins 
+                        ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400' 
+                        : 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    }`}>
+                      {currentAdminCount}/{maxAdmins} Admins
+                    </div>
+                    {currentAdminCount >= maxAdmins && (
+                      <button
+                        onClick={() => setShowUpgradeModal(true)}
+                        className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                      >
+                        Upgrade to add more
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-3">
@@ -593,6 +676,17 @@ export default function MembersPage() {
           </div>
         </div>
       )}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        reason="member"
+        currentCount={members.length}
+        maxAllowed={5}
+        workspaceName="Workspace"
+        whatsappNumber={whatsappNumber}
+      />
     </div>
   );
 }

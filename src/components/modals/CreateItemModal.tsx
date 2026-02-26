@@ -189,12 +189,23 @@ export function CreateItemModal() {
     } catch (error: any) {
       console.error(`Failed to create ${type}:`, error);
       
+      // Check for limit errors
+      const errorCode = error.response?.data?.code;
+      const errorMessage = error.response?.data?.message;
+      
+      if (errorCode === 'SPACE_LIMIT_REACHED' || 
+          errorCode === 'LIST_LIMIT_REACHED' || 
+          errorCode === 'FOLDER_LIMIT_REACHED') {
+        toast.error(errorMessage || `You've reached your ${type} limit. Please upgrade your plan.`);
+      } else {
+        toast.error(errorMessage || `Failed to create ${type}`);
+      }
+      
       // Set form error
       form.setError('name', {
         type: 'manual',
-        message: error.response?.data?.message || `Failed to create ${type}`,
+        message: errorMessage || `Failed to create ${type}`,
       });
-      toast.error(`Failed to create ${type}`);
     } finally {
       setIsSubmitting(false);
     }

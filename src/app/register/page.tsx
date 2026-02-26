@@ -81,10 +81,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-950 min-h-screen flex items-center justify-center p-3 font-sans">
+    <div className="bg-slate-50 dark:bg-[#111111] min-h-screen flex items-center justify-center p-3 font-sans">
       <div className="w-full max-w-[400px]">
         {/* Register Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 p-5 sm:p-6">
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 p-5 sm:p-6">
           {/* Brand & Title */}
           <div className="text-center mb-4">
             <div className="flex items-center justify-center gap-2 text-[#135bec] mb-2">
@@ -105,7 +105,7 @@ export default function RegisterPage() {
             type="button"
             onClick={handleGoogleSignup}
             disabled={loading || googleLoading}
-            className="flex items-center justify-center gap-2 w-full h-9 px-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+            className="flex items-center justify-center gap-2 w-full h-9 px-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3"
           >
             {googleLoading ? (
               <>
@@ -131,7 +131,7 @@ export default function RegisterPage() {
               <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-white dark:bg-slate-900 px-2 text-slate-400">or</span>
+              <span className="bg-white dark:bg-[#1a1a1a] px-2 text-slate-400">or</span>
             </div>
           </div>
 
@@ -145,7 +145,7 @@ export default function RegisterPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-2.5">
             <input
-              className="block w-full h-10 px-3 rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#135bec] focus:ring-[#135bec]/20 transition-all text-sm"
+              className="block w-full h-10 px-3 rounded-lg border-slate-300 dark:border-slate-700 dark:bg-[#111111] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#135bec] focus:ring-[#135bec]/20 transition-all text-sm"
               placeholder="Full name"
               required
               type="text"
@@ -155,7 +155,7 @@ export default function RegisterPage() {
             />
 
             <input
-              className="block w-full h-10 px-3 rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#135bec] focus:ring-[#135bec]/20 transition-all text-sm"
+              className="block w-full h-10 px-3 rounded-lg border-slate-300 dark:border-slate-700 dark:bg-[#111111] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#135bec] focus:ring-[#135bec]/20 transition-all text-sm"
               placeholder="Email address"
               required
               type="email"
@@ -166,7 +166,7 @@ export default function RegisterPage() {
 
             <div className="relative">
               <input
-                className="block w-full h-10 pl-3 pr-9 rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#135bec] focus:ring-[#135bec]/20 transition-all text-sm"
+                className="block w-full h-10 pl-3 pr-9 rounded-lg border-slate-300 dark:border-slate-700 dark:bg-[#111111] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#135bec] focus:ring-[#135bec]/20 transition-all text-sm"
                 placeholder="Password (min. 6 characters)"
                 required
                 type={showPassword ? 'text' : 'password'}

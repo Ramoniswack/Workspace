@@ -238,6 +238,7 @@ export default function SpaceHomePage() {
       const list = await createList(spaceId, listPayload);
       
       // Update global workspace store for sidebar
+      // Note: createList already adds to local store, we just need to update global workspace store
       addListToWorkspace(spaceId, {
         _id: list._id,
         name: list.name,
@@ -252,10 +253,18 @@ export default function SpaceHomePage() {
       setNewListData({ name: '', description: '', folderId: '' });
       toast.success('List created successfully');
       
-      // Refresh folders to show the new list
-      await fetchFolders(spaceId);
-    } catch (error) {
-      toast.error('Failed to create list');
+      // Don't refresh folders - the list is already added to state
+      // await fetchFolders(spaceId);
+    } catch (error: any) {
+      // Check for list limit error
+      const errorCode = error.response?.data?.code;
+      const errorMessage = error.response?.data?.message;
+      
+      if (errorCode === 'LIST_LIMIT_REACHED') {
+        toast.error(errorMessage || 'List limit reached. Please upgrade your plan.');
+      } else {
+        toast.error(errorMessage || 'Failed to create list');
+      }
     }
   };
 
@@ -285,8 +294,16 @@ export default function SpaceHomePage() {
       setShowCreateFolderModal(false);
       setNewFolderData({ name: '', color: '#3b82f6' });
       toast.success('Folder created successfully');
-    } catch (error) {
-      toast.error('Failed to create folder');
+    } catch (error: any) {
+      // Check for folder limit error
+      const errorCode = error.response?.data?.code;
+      const errorMessage = error.response?.data?.message;
+      
+      if (errorCode === 'FOLDER_LIMIT_REACHED') {
+        toast.error(errorMessage || 'Folder limit reached. Please upgrade your plan.');
+      } else {
+        toast.error(errorMessage || 'Failed to create folder');
+      }
     }
   };
 

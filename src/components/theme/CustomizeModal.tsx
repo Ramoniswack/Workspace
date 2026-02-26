@@ -19,7 +19,7 @@ interface CustomizeModalProps {
 }
 
 export function CustomizeModal({ open, onOpenChange }: CustomizeModalProps) {
-  const [activeTab, setActiveTab] = useState<'navigation' | 'home' | 'sections' | 'themes'>('themes');
+  const [activeTab, setActiveTab] = useState<'themes'>('themes');
   const { theme, setTheme } = useTheme();
   const { accentColor, setAccentColor } = useThemeStore();
 
@@ -68,9 +68,6 @@ export function CustomizeModal({ open, onOpenChange }: CustomizeModalProps) {
         {/* Tabs */}
         <div className="flex border-b border-slate-200 dark:border-[#262626] px-6">
           {[
-            { id: 'navigation', label: 'Navigation' },
-            { id: 'home', label: 'Home' },
-            { id: 'sections', label: 'Sections' },
             { id: 'themes', label: 'Themes' },
           ].map((tab) => (
             <button
@@ -181,30 +178,6 @@ export function CustomizeModal({ open, onOpenChange }: CustomizeModalProps) {
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'navigation' && (
-            <div className="text-center py-12">
-              <p className="text-slate-500 dark:text-slate-400">
-                Navigation customization coming soon
-              </p>
-            </div>
-          )}
-
-          {activeTab === 'home' && (
-            <div className="text-center py-12">
-              <p className="text-slate-500 dark:text-slate-400">
-                Home customization coming soon
-              </p>
-            </div>
-          )}
-
-          {activeTab === 'sections' && (
-            <div className="text-center py-12">
-              <p className="text-slate-500 dark:text-slate-400">
-                Sections customization coming soon
-              </p>
             </div>
           )}
         </div>

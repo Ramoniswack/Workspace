@@ -589,6 +589,7 @@ export default function ListView() {
                     }}
                     listId={listId}
                     listName={list?.name || 'List'}
+                    spaceId={spaceId}
                   />
                 </>
               )}
@@ -725,18 +726,7 @@ export default function ListView() {
               <LayoutList className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden xs:inline">List</span>
             </button>
-            <button
-              onClick={() => setView('calendar')}
-              title="Calendar View"
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
-                view === 'calendar'
-                  ? 'bg-background shadow-sm'
-                  : 'hover:bg-background/50'
-              }`}
-            >
-              <CalendarIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Calendar</span>
-            </button>
+
             <button
               onClick={() => setView('activity')}
               title="Activity Log View"

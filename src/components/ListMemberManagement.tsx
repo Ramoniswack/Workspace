@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Search, Users } from 'lucide-react';
+import { Trash2, Search, Users, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ListMember {
@@ -28,6 +28,7 @@ interface ListMemberManagementProps {
   onOpenChange: (open: boolean) => void;
   listId: string;
   listName: string;
+  spaceId: string;
 }
 
 export function ListMemberManagement({
@@ -35,16 +36,19 @@ export function ListMemberManagement({
   onOpenChange,
   listId,
   listName,
+  spaceId,
 }: ListMemberManagementProps) {
   const [members, setMembers] = useState<ListMember[]>([]);
+  const [spaceMembers, setSpaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (open) {
       fetchMembers();
+      fetchSpaceMembers();
     }
-  }, [open, listId]);
+  }, [open, listId, spaceId]);
 
   const fetchMembers = async () => {
     try {
@@ -56,6 +60,16 @@ export function ListMemberManagement({
       toast.error('Failed to load list members');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSpaceMembers = async () => {
+    try {
+      const response = await api.get(`/spaces/${spaceId}/members`);
+      setSpaceMembers(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch space members:', error);
+      // If space members endpoint doesn't exist, we'll use workspace members from the list members API
     }
   };
 
@@ -83,11 +97,11 @@ export function ListMemberManagement({
     }
   };
 
-  const handleAddMember = async (userId: string, permissionLevel: string = 'EDIT') => {
+  const handleAssignMember = async (userId: string) => {
     try {
       await api.post(`/lists/${listId}/list-members`, {
         userId,
-        permissionLevel,
+        permissionLevel: 'VIEW', // Default to VIEW permission
       });
       
       // Send notification to the assigned member
@@ -97,7 +111,7 @@ export function ListMemberManagement({
           type: 'list_assignment',
           title: 'Assigned to List',
           message: `You've been assigned to "${listName}"`,
-          link: `/workspace/${listId}`, // Will be updated with proper workspace/space/list path
+          link: `/workspace/${listId}`,
         });
       } catch (notifError) {
         console.error('Failed to send notification:', notifError);
@@ -120,26 +134,22 @@ export function ListMemberManagement({
       .slice(0, 2);
   };
 
-  const getPermissionBadge = (member: ListMember) => {
-    if (!member.hasOverride) {
-      return (
-        <Badge variant="outline" className="text-xs">
-          Workspace: {member.workspaceRole}
-        </Badge>
-      );
-    }
+  const getPermissionLabel = (level: string) => {
+    const labels: Record<string, string> = {
+      FULL: 'Full Access',
+      EDIT: 'Can Edit',
+      VIEW: 'View Only',
+    };
+    return labels[level] || level;
+  };
 
-    const permissionColors: Record<string, string> = {
+  const getPermissionBadgeColor = (level: string) => {
+    const colors: Record<string, string> = {
       FULL: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400',
       EDIT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
       VIEW: 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400',
     };
-
-    return (
-      <Badge className={permissionColors[member.listPermissionLevel!] || ''}>
-        {member.listPermissionLevel}
-      </Badge>
-    );
+    return colors[level] || '';
   };
 
   const filteredMembers = members.filter(
@@ -148,23 +158,23 @@ export function ListMemberManagement({
       member.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Separate members with and without overrides
-  const membersWithAccess = filteredMembers.filter((m) => m.hasOverride);
-  const membersWithoutAccess = filteredMembers.filter((m) => !m.hasOverride);
+  // Separate assigned and unassigned members
+  const assignedMembers = filteredMembers.filter((m) => m.hasOverride);
+  const unassignedMembers = filteredMembers.filter((m) => !m.hasOverride);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col dark:bg-[#1a1a1a]">
         <DialogHeader>
-          <DialogTitle>List Permissions - {listName}</DialogTitle>
+          <DialogTitle>Manage List Members - {listName}</DialogTitle>
           <DialogDescription>
-            Manage member permissions for this list.
+            Assign members to this list and manage their permissions.
             <br />
             <strong>Full Access:</strong> Create, edit, delete tasks
             <br />
-            <strong>Can Edit:</strong> Create and edit tasks, change status
+            <strong>Can Edit:</strong> Change status only
             <br />
-            <strong>View Only:</strong> View tasks only
+            <strong>View Only:</strong> View tasks only (default)
           </DialogDescription>
         </DialogHeader>
 
@@ -188,17 +198,18 @@ export function ListMemberManagement({
             </div>
           ) : (
             <>
-              {/* Members with List Access */}
-              {membersWithAccess.length > 0 && (
+              {/* Assigned List Members */}
+              {assignedMembers.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                    List Members ({membersWithAccess.length})
+                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Assigned List Members ({assignedMembers.length})
                   </h3>
                   <div className="space-y-2">
-                    {membersWithAccess.map((member) => (
+                    {assignedMembers.map((member) => (
                       <div
                         key={member._id}
-                        className="flex items-center justify-between p-3 bg-accent/50 rounded-lg hover:bg-accent transition-colors"
+                        className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg"
                       >
                         <div className="flex items-center gap-3 flex-1">
                           <Avatar className="w-10 h-10">
@@ -213,14 +224,16 @@ export function ListMemberManagement({
                               {member.email}
                             </p>
                           </div>
-                          {getPermissionBadge(member)}
+                          <Badge className={getPermissionBadgeColor(member.listPermissionLevel!)}>
+                            {getPermissionLabel(member.listPermissionLevel!)}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 ml-3">
                           <Select
-                            value={member.listPermissionLevel || 'EDIT'}
+                            value={member.listPermissionLevel || 'VIEW'}
                             onValueChange={(value) => handleUpdatePermission(member._id, value)}
                           >
-                            <SelectTrigger className="w-32">
+                            <SelectTrigger className="w-32 h-9">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -233,7 +246,8 @@ export function ListMemberManagement({
                             variant="ghost"
                             size="icon"
                             onClick={() => handleRemoveMember(member._id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            title="Remove from list"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -244,14 +258,14 @@ export function ListMemberManagement({
                 </div>
               )}
 
-              {/* Workspace Members without List Access */}
-              {membersWithoutAccess.length > 0 && (
+              {/* Space Members (Unassigned) */}
+              {unassignedMembers.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                    Workspace Members ({membersWithoutAccess.length})
+                    Space Members ({unassignedMembers.length})
                   </h3>
                   <div className="space-y-2">
-                    {membersWithoutAccess.map((member) => (
+                    {unassignedMembers.map((member) => (
                       <div
                         key={member._id}
                         className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
@@ -269,22 +283,20 @@ export function ListMemberManagement({
                               {member.email}
                             </p>
                           </div>
-                          {getPermissionBadge(member)}
+                          <Badge variant="outline" className="text-xs">
+                            Workspace: {member.workspaceRole}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Select
-                            defaultValue="EDIT"
-                            onValueChange={(value) => handleAddMember(member._id, value)}
+                        <div className="flex items-center gap-2 ml-3">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleAssignMember(member._id)}
+                            className="h-9 gap-1"
                           >
-                            <SelectTrigger className="w-32">
-                              <SelectValue placeholder="Assign to list" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="FULL">Full Access</SelectItem>
-                              <SelectItem value="EDIT">Can Edit</SelectItem>
-                              <SelectItem value="VIEW">View Only</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            <UserPlus className="w-4 h-4" />
+                            Assign
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -302,7 +314,7 @@ export function ListMemberManagement({
           )}
         </div>
 
-        <div className="flex justify-end pt-4 border-t">
+        <div className="flex justify-end pt-4 border-t dark:border-slate-800">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>

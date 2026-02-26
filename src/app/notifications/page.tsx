@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/axios';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { toast } from 'sonner';
 import {
   Bell,
   BellOff,
@@ -178,7 +179,7 @@ export default function NotificationsPage() {
 
   const handleAcceptInvitation = async (notification: any) => {
     if (!notification.data?.token) {
-      alert('Invalid invitation');
+      toast.error('Invalid invitation');
       return;
     }
 
@@ -192,13 +193,15 @@ export default function NotificationsPage() {
       await handleMarkAsRead(notification._id, notification.type);
 
       // Show success message
-      alert(`Successfully joined ${data.workspace.name}!`);
+      toast.success(`Successfully joined ${data.workspace.name}!`);
 
       // Refresh the page to update sidebar with new workspace
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Failed to accept invitation:', error);
-      alert(error.response?.data?.message || 'Failed to accept invitation');
+      toast.error(error.response?.data?.message || 'Failed to accept invitation');
     } finally {
       setAccepting(null);
     }

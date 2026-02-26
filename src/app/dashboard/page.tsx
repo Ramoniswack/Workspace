@@ -21,7 +21,9 @@ import {
   Clock,
   Edit,
   Moon,
-  Sun
+  Sun,
+  Bell,
+  Zap
 } from 'lucide-react';
 import { useSocket } from '@/contexts/SocketContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,6 +42,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from 'sonner';
 import { timeAgo } from '@/lib/timeAgo';
 import { api } from '@/lib/axios';
+import UpgradeModal from '@/components/subscription/UpgradeModal';
+import SubscriptionBanner from '@/components/subscription/SubscriptionBanner';
+import TrialCountdownBanner from '@/components/subscription/TrialCountdownBanner';
+import PlanLimitsCard from '@/components/subscription/PlanLimitsCard';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 // Icon mapping for space types
 const spaceIconMap: Record<string, React.ReactNode> = {
@@ -84,6 +92,32 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState('');
   const [workspaceSpaces, setWorkspaceSpaces] = useState<Record<string, any[]>>({});
   const [workspaceActivity, setWorkspaceActivity] = useState<Record<string, string>>({});
+
+  // Subscription state
+  const { subscription, canCreateWorkspace } = useSubscription();
+  const { whatsappNumber } = useSystemSettings();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<'workspace' | 'member' | 'access-control' | 'trial-expired'>('workspace');
+
+  // Notification state
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Fetch unread notifications count
+  const fetchNotificationCount = async () => {
+    try {
+      const response = await api.get('/notifications/unread-count');
+      setUnreadNotifications(response.data.count || 0);
+    } catch (error) {
+      console.error('Failed to fetch notification count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotificationCount();
+    // Poll for notifications every 30 seconds
+    const interval = setInterval(fetchNotificationCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch workspaces
   const fetchWorkspaces = async () => {
@@ -151,6 +185,14 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!newWorkspaceName.trim()) return;
     
+    // Check workspace limit before creating
+    if (!canCreateWorkspace()) {
+      setUpgradeReason('workspace');
+      setShowUpgradeModal(true);
+      setShowCreateModal(false);
+      return;
+    }
+    
     setCreating(true);
 
     try {
@@ -164,7 +206,15 @@ export default function DashboardPage() {
       setShowCreateModal(false);
       toast.success('Workspace created successfully!');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to create workspace');
+      // Check for workspace limit error from backend
+      if (error.response?.data?.code === 'WORKSPACE_LIMIT_REACHED') {
+        toast.error(error.response?.data?.message || 'Workspace limit reached. Please upgrade your plan.');
+        setUpgradeReason('workspace');
+        setShowUpgradeModal(true);
+        setShowCreateModal(false);
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to create workspace');
+      }
     } finally {
       setCreating(false);
     }
@@ -260,7 +310,36 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">TaskFlow</h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">Welcome back, {userName}</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <button
+                onClick={() => router.push('/notifications')}
+                className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                )}
+              </button>
+
+              {/* Upgrade Button (for non-paid users) */}
+              {subscription && !subscription.isPaid && (
+                <button
+                  onClick={() => {
+                    setUpgradeReason('workspace');
+                    setShowUpgradeModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-all shadow-lg shadow-purple-500/30"
+                  title="Upgrade Plan"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span className="text-sm font-medium hidden sm:inline">Upgrade</span>
+                </button>
+              )}
+
               {/* Theme Toggle */}
               <button
                 onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
@@ -275,7 +354,7 @@ export default function DashboardPage() {
               </button>
 
               {/* Connection Status */}
-              <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${
                   isConnected ? 'bg-green-500' : isConnecting ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'
                 }`} />
@@ -283,13 +362,43 @@ export default function DashboardPage() {
                   {isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected'}
                 </span>
               </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="text-sm font-medium hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Trial Countdown Banner */}
+      <TrialCountdownBanner />
+
+      {/* Subscription Banner */}
+      <SubscriptionBanner 
+        workspaceName={workspaces[0]?.name || 'My Workspace'} 
+        whatsappNumber={whatsappNumber}
+      />
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Plan Limits Card */}
+        <div className="mb-8">
+          <PlanLimitsCard 
+            workspaceCount={workspaces.length}
+            onUpgrade={() => {
+              setUpgradeReason('workspace');
+              setShowUpgradeModal(true);
+            }}
+          />
+        </div>
+
         <div className="flex items-center justify-between mb-10">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
@@ -573,6 +682,17 @@ export default function DashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        reason={upgradeReason}
+        currentCount={workspaces.length}
+        maxAllowed={subscription?.plan?.features.maxWorkspaces || 1}
+        workspaceName={workspaces[0]?.name || 'My Workspace'}
+        whatsappNumber={whatsappNumber}
+      />
     </div>
   );
 }

@@ -77,12 +77,19 @@ export default function InlineCreateTaskWithQuery({
       // Return context with previous tasks for rollback
       return { previousTasks };
     },
-    onError: (err, newTask, context) => {
+    onError: (err: any, newTask, context) => {
       // Rollback on error
       if (context?.previousTasks) {
         queryClient.setQueryData(queryKey, context.previousTasks);
       }
       console.error('Failed to create task:', err);
+      
+      // Show user-friendly error message
+      if (err.response?.data?.code === 'TASK_LIMIT_REACHED') {
+        alert(err.response?.data?.message || 'Task limit reached. Please upgrade your plan to create more tasks.');
+      } else {
+        alert(err.response?.data?.message || 'Failed to create task. Please try again.');
+      }
     },
     onSuccess: (data) => {
       // Replace temp task with real task from server

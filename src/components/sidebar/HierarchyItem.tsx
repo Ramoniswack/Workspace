@@ -17,7 +17,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/useUIStore';
 import { useModalStore } from '@/store/useModalStore';
-import { HierarchyItem, HierarchyItemType } from '@/types/hierarchy';
+import { usePermissions } from '@/store/useAuthStore';
+import { HierarchyItem } from '@/types/hierarchy';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -40,9 +41,13 @@ export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId
   const pathname = usePathname();
   const { expandedIds, toggleExpanded, favoriteIds, toggleFavorite } = useUIStore();
   const { openModal } = useModalStore();
+  const { isAdmin, isOwner } = usePermissions();
   const [isHovered, setIsHovered] = useState(false);
   const [canCreateContent, setCanCreateContent] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Check if user is admin or owner
+  const isAdminOrOwner = isAdmin() || isOwner();
 
   // Get userId from localStorage
   useEffect(() => {
@@ -55,12 +60,9 @@ export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId
   // Check if user can create content (only for spaces)
   useEffect(() => {
     if (item.type === 'space' && userId) {
-      // Get workspace role from localStorage or check if user is space admin
-      const workspaceRole = localStorage.getItem('workspaceRole');
-      const isOwnerOrAdmin = workspaceRole === 'owner' || workspaceRole === 'admin';
-      setCanCreateContent(isOwnerOrAdmin);
+      setCanCreateContent(isAdminOrOwner);
     }
-  }, [item.type, userId]);
+  }, [item.type, userId, isAdminOrOwner]);
 
   const isExpanded = expandedIds.includes(item._id);
   const isFavorite = favoriteIds.includes(item._id);
@@ -198,7 +200,7 @@ const getRoute = () => {
           )}
 
           {/* Hover Actions */}
-          {isHovered && (
+          {isHovered && isAdminOrOwner && (
             <div className="flex items-center gap-1 flex-shrink-0">
               {/* Add Button - Only show for spaces if user is owner/admin */}
               {item.type === 'space' && canCreateContent && (
@@ -231,7 +233,10 @@ const getRoute = () => {
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                   >
                     <MoreHorizontal className="h-3 w-3" />
                   </Button>
@@ -247,6 +252,7 @@ const getRoute = () => {
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           openModal('editSpace', item._id, 'space', item.name);
                         }}
                       >
@@ -261,6 +267,7 @@ const getRoute = () => {
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           if (item.type === 'space') {
                             openModal('list', item._id, 'space', item.name);
                           } else if (item.type === 'folder') {

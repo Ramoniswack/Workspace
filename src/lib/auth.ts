@@ -10,6 +10,7 @@ interface AuthResponse {
     _id: string;
     name: string;
     email: string;
+    isSuperUser?: boolean;
   };
 }
 
@@ -29,6 +30,7 @@ function normalizeAuthResponse(data: any): AuthResponse {
         _id: data.user._id,
         name: data.user.name,
         email: data.user.email,
+        isSuperUser: data.user.isSuperUser || false,
       },
     };
   }
@@ -67,6 +69,7 @@ function storeAuthData(authData: AuthResponse): void {
   localStorage.setItem('userId', authData.user._id);
   localStorage.setItem('userName', authData.user.name);
   localStorage.setItem('userEmail', authData.user.email);
+  localStorage.setItem('isSuperUser', String(authData.user.isSuperUser || false));
   
   // Dispatch custom event to notify socket context
   window.dispatchEvent(new CustomEvent('auth-token-updated', { 
@@ -84,6 +87,7 @@ export function clearAuthData(): void {
   localStorage.removeItem('userId');
   localStorage.removeItem('userName');
   localStorage.removeItem('userEmail');
+  localStorage.removeItem('isSuperUser');
 }
 
 /**
@@ -107,6 +111,7 @@ export function getCurrentUser() {
     id: localStorage.getItem('userId'),
     name: localStorage.getItem('userName'),
     email: localStorage.getItem('userEmail'),
+    isSuperUser: localStorage.getItem('isSuperUser') === 'true',
   };
 }
 

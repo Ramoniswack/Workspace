@@ -84,11 +84,17 @@ export default function InlineCreateTask({
       // Reset form
       setTitle('');
       setIsCreating(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create task:', error);
+      
+      // Check for task limit error
+      if (error.response?.data?.code === 'TASK_LIMIT_REACHED') {
+        alert(error.response?.data?.message || 'Task limit reached. Please upgrade your plan to create more tasks.');
+      } else {
+        alert(error.response?.data?.message || 'Failed to create task. Please try again.');
+      }
       // TODO: Remove optimistic task on error
       // You might want to pass an onError callback to handle this
-      alert('Failed to create task. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
