@@ -18,6 +18,7 @@ export default function GroupChatPage() {
   const workspaceId = params.id as string;
   
   const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceSubscription, setWorkspaceSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasGroupChat, setHasGroupChat] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
@@ -86,13 +87,18 @@ export default function GroupChatPage() {
         if (response.data.success) {
           const workspace = response.data.data;
           setWorkspaceName(workspace.name);
+          setWorkspaceSubscription(workspace.subscription);
+          
+          console.log('[GroupChat] Workspace data:', workspace);
+          console.log('[GroupChat] Workspace subscription:', workspace.subscription);
           
           // Check if user is owner
           const userIsOwner = workspace.owner === userId || workspace.owner._id === userId;
           setIsOwner(userIsOwner);
           
-          // Check if group chat is enabled in owner's plan
+          // Check if group chat is enabled in workspace owner's plan
           const groupChatEnabled = workspace.subscription?.plan?.features?.hasGroupChat || false;
+          console.log('[GroupChat] Group chat enabled:', groupChatEnabled);
           setHasGroupChat(groupChatEnabled);
           
           setCheckingAccess(false);
@@ -265,6 +271,7 @@ export default function GroupChatPage() {
           isOpen={showPlansModal}
           onClose={() => setShowPlansModal(false)}
           currentPlanName={subscription?.plan?.name}
+          workspaceSubscription={workspaceSubscription}
           whatsappNumber={whatsappNumber}
         />
       </div>

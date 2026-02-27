@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, KeyboardEvent, useCallback } from 'react';
 import { Send, Smile, Loader2, Check, CheckCheck, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat, ChatMessage } from '@/hooks/useChat';
@@ -78,15 +78,31 @@ export const ChatWindow = ({ workspaceId, conversationId, userId, type, title }:
     setInputValue(getDraft(roomId));
   }, [roomId, getDraft]);
 
+  // Callback for scrolling to bottom after initial load
+  const handleInitialLoad = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
+  }, []);
+
   const {
     messages: fetchedMessages,
     loading,
+    loadingMore,
     sending,
     error,
+    hasMore,
     typingUsers,
     sendMessage,
-    sendTypingIndicator
-  } = useChat({ workspaceId, conversationId, userId, type });
+    sendTypingIndicator,
+    loadMore
+  } = useChat({ 
+    workspaceId, 
+    conversationId, 
+    userId, 
+    type,
+    onInitialLoad: handleInitialLoad
+  });
 
   // Local state for messages (includes optimistic messages)
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
@@ -333,6 +349,26 @@ export const ChatWindow = ({ workspaceId, conversationId, userId, type, title }:
           </div>
         )}
 
+        {/* Load More Button */}
+        {hasMore && !loading && (
+          <div className="flex justify-center py-2">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-4 py-2 text-sm bg-muted hover:bg-muted/80 text-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'Load More Messages'
+              )}
+            </button>
+          </div>
+        )}
+
         {localMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             No messages yet. Start the conversation!
@@ -433,11 +469,11 @@ export const ChatWindow = ({ workspaceId, conversationId, userId, type, title }:
               <div
                 key={message._id}
                 className={cn(
-                  'flex gap-3',
+                  'flex gap-3 items-start',
                   !showAvatar && 'ml-11'
                 )}
               >
-                {showAvatar ? (
+                {showAvatar && (
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     {message.sender.avatar ? (
                       <AvatarImage src={message.sender.avatar} alt={message.sender.name} />
@@ -446,8 +482,6 @@ export const ChatWindow = ({ workspaceId, conversationId, userId, type, title }:
                       {getInitials(message.sender.name)}
                     </AvatarFallback>
                   </Avatar>
-                ) : (
-                  <div className="w-8 flex-shrink-0" />
                 )}
 
                 <div className="flex-1 min-w-0">

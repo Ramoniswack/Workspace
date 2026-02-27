@@ -256,6 +256,10 @@ export default function SpaceHomePage() {
       // Don't refresh folders - the list is already added to state
       // await fetchFolders(spaceId);
     } catch (error: any) {
+      console.error('[handleCreateList] Error creating list:', error);
+      console.error('[handleCreateList] Error response:', error.response?.data);
+      console.error('[handleCreateList] Error status:', error.response?.status);
+      
       // Check for list limit error
       const errorCode = error.response?.data?.code;
       const errorMessage = error.response?.data?.message;
@@ -677,13 +681,8 @@ export default function SpaceHomePage() {
                   </DialogContent>
                 </Dialog>
                 
+                {/* List creation dialog - only opened from folder "Add List" buttons */}
                 <Dialog open={showCreateListModal} onOpenChange={setShowCreateListModal}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" style={{ backgroundColor: spaceColor }} onClick={() => handleOpenCreateListModal()} className="flex-1 sm:flex-none">
-                      <Plus className="w-4 h-4 mr-2" />
-                      New List
-                    </Button>
-                  </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>{newListData.folderId ? 'Create List in Folder' : 'Create New List'}</DialogTitle>
@@ -731,17 +730,13 @@ export default function SpaceHomePage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Get Started</h3>
                 <p className="text-sm text-muted-foreground text-center mb-6 max-w-md px-4">
-                  Create your first list to start organizing tasks, or create folders to group related lists together.
+                  Create folders to organize your lists. Lists can only be created inside folders.
                 </p>
                 {canCreateContent && (
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto px-4">
                     <Button variant="outline" onClick={() => setShowCreateFolderModal(true)} className="w-full sm:w-auto">
                       <Folder className="w-4 h-4 mr-2" />
                       Create Folder
-                    </Button>
-                    <Button onClick={() => handleOpenCreateListModal()} style={{ backgroundColor: spaceColor }} className="w-full sm:w-auto">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create List
                     </Button>
                   </div>
                 )}

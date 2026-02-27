@@ -34,10 +34,11 @@ interface PlansModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentPlanName?: string;
+  workspaceSubscription?: any;
   whatsappNumber: string;
 }
 
-export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappNumber }: PlansModalProps) {
+export default function PlansModal({ isOpen, onClose, currentPlanName, workspaceSubscription, whatsappNumber }: PlansModalProps) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
@@ -75,6 +76,11 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
   };
 
   const isCurrentPlan = (planName: string) => {
+    // Check workspace subscription first (for workspace context)
+    if (workspaceSubscription?.plan?.name) {
+      return planName.toLowerCase() === workspaceSubscription.plan.name.toLowerCase();
+    }
+    // Fallback to user's own subscription
     return planName.toLowerCase() === currentPlanName?.toLowerCase();
   };
 

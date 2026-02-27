@@ -27,25 +27,39 @@ interface UseChatOptions {
   conversationId?: string;
   userId?: string; // For DM - the other user's ID
   type: 'workspace' | 'direct';
+  onInitialLoad?: () => void; // Callback after initial messages load
 }
 
-export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOptions) => {
+export const useChat = ({ workspaceId, conversationId, userId, type, onInitialLoad }: UseChatOptions) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
   
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onInitialLoadRef = useRef(onInitialLoad);
   const socket = getSocket();
+  
+  // Update ref when callback changes
+  useEffect(() => {
+    onInitialLoadRef.current = onInitialLoad;
+  }, [onInitialLoad]);
   
   // Get Zustand store actions
   const { addMessage: addMessageToStore } = useChatStore();
 
   // Fetch initial messages
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (pageNum: number = 1, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       
       const token = localStorage.getItem('authToken') || localStorage.getItem('token');
@@ -54,24 +68,43 @@ export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOp
         console.error('[useChat] No token found');
         setError('Authentication required. Please login again.');
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
       let response;
+      const limit = 50; // Increased to 50 for better UX - load more messages initially
+      
       if (type === 'workspace' && workspaceId) {
-        response = await api.get(`/workspaces/${workspaceId}/chat?limit=50`);
+        response = await api.get(`/workspaces/${workspaceId}/chat?page=${pageNum}&limit=${limit}`);
       } else if (type === 'direct' && conversationId) {
-        response = await api.get(`/dm/${conversationId}/messages?limit=50`);
+        response = await api.get(`/dm/${conversationId}/messages?page=${pageNum}&limit=${limit}`);
       } else {
         console.error('[useChat] Invalid parameters');
         setError('Invalid chat configuration');
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
       if (response?.data?.success) {
-        const messages = response.data.data || [];
-        setMessages(messages);
+        const newMessages = response.data.data || [];
+        const pagination = response.data.pagination;
+        
+        if (append) {
+          // Prepend older messages (they come in chronological order within the page)
+          setMessages(prev => [...newMessages, ...prev]);
+        } else {
+          // Initial load - set messages directly
+          setMessages(newMessages);
+          // Trigger callback to scroll to bottom
+          if (onInitialLoadRef.current) {
+            setTimeout(() => onInitialLoadRef.current?.(), 100);
+          }
+        }
+        
+        setHasMore(pagination?.hasMore || false);
+        setPage(pageNum);
       } else {
         console.error('[useChat] Response not successful:', response?.data);
         setError('Failed to load messages');
@@ -86,8 +119,16 @@ export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOp
       setError(errorMessage);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [workspaceId, conversationId, type]);
+
+  // Load more messages
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      fetchMessages(page + 1, true);
+    }
+  }, [fetchMessages, page, hasMore, loadingMore]);
 
   // Send message
   const sendMessage = useCallback(async (content: string, mentions: string[] = []) => {
@@ -157,11 +198,30 @@ export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOp
       joinDM(conversationId);
     }
 
+    // Socket error handler
+    const handleSocketError = (error: any) => {
+      console.error('[useChat] Socket error:', error);
+      setError(error.message || 'An error occurred');
+      setSending(false);
+    };
+
+    socket.on('error', handleSocketError);
+
     // Workspace chat events
     if (type === 'workspace' && workspaceId) {
       // New message received
       const handleNewMessage = (data: { message: ChatMessage }) => {
-        setMessages(prev => [...prev, data.message]);
+        console.log('[useChat] New message received:', data.message);
+        setMessages(prev => {
+          // Check if message already exists (avoid duplicates)
+          const exists = prev.some(m => m._id === data.message._id);
+          if (exists) {
+            console.log('[useChat] Message already exists, skipping');
+            return prev;
+          }
+          console.log('[useChat] Adding new message to list');
+          return [...prev, data.message];
+        });
         // Add to Zustand store
         const roomId = `workspace_${workspaceId}`;
         addMessageToStore(roomId, data.message);
@@ -186,6 +246,7 @@ export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOp
       socket.on('chat:user_stop_typing', handleUserStopTyping);
 
       return () => {
+        socket.off('error', handleSocketError);
         socket.off('chat:new', handleNewMessage);
         socket.off('chat:user_typing', handleUserTyping);
         socket.off('chat:user_stop_typing', handleUserStopTyping);
@@ -205,12 +266,17 @@ export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOp
       socket.on('dm:new', handleNewDM);
 
       return () => {
+        socket.off('error', handleSocketError);
         socket.off('dm:new', handleNewDM);
         if (conversationId) {
           leaveDM(conversationId);
         }
       };
     }
+
+    return () => {
+      socket.off('error', handleSocketError);
+    };
   }, [socket, type, workspaceId, conversationId, addMessageToStore]);
 
   // Fetch messages on mount
@@ -232,11 +298,14 @@ export const useChat = ({ workspaceId, conversationId, userId, type }: UseChatOp
   return {
     messages,
     loading,
+    loadingMore,
     sending,
     error,
+    hasMore,
     typingUsers: Array.from(typingUsers),
     sendMessage,
     sendTypingIndicator,
+    loadMore,
     refetch: fetchMessages
   };
 };

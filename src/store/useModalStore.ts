@@ -10,13 +10,15 @@ interface ModalState {
   parentId: string | null;
   parentType: ParentType | null;
   parentName: string | null;
+  spaceId: string | null; // Added for list creation inside folders
   
   // Actions
   openModal: (
     type: ModalType,
     parentId: string,
     parentType: ParentType,
-    parentName?: string
+    parentName?: string,
+    spaceId?: string // Added optional spaceId parameter
   ) => void;
   closeModal: () => void;
   
@@ -32,16 +34,18 @@ export const useModalStore = create<ModalState>((set) => ({
   parentId: null,
   parentType: null,
   parentName: null,
+  spaceId: null,
   onSuccess: undefined,
 
   // Open modal with context
-  openModal: (type, parentId, parentType, parentName) => {
+  openModal: (type, parentId, parentType, parentName, spaceId) => {
     set({
       isOpen: true,
       type,
       parentId,
       parentType,
       parentName: parentName || null,
+      spaceId: spaceId || null,
     });
   },
 
@@ -53,6 +57,7 @@ export const useModalStore = create<ModalState>((set) => ({
       parentId: null,
       parentType: null,
       parentName: null,
+      spaceId: null,
     });
   },
 

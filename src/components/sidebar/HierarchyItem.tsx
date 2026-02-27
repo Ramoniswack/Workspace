@@ -141,8 +141,9 @@ const getRoute = () => {
       // Create folder in space
       openModal('folder', item._id, 'space', item.name);
     } else if (item.type === 'folder') {
-      // Create list in folder
-      openModal('list', item._id, 'folder', item.name);
+      // Create list in folder - pass spaceId as 5th parameter
+      const spaceId = parentSpaceId || (item as any).space || (item as any).spaceId;
+      openModal('list', item._id, 'folder', item.name, spaceId);
     }
   };
 

@@ -52,7 +52,7 @@ const COLORS = [
 ];
 
 export function CreateItemModal() {
-  const { isOpen, type, parentId, parentType, parentName, closeModal, onSuccess } = useModalStore();
+  const { isOpen, type, parentId, parentType, parentName, spaceId, closeModal, onSuccess } = useModalStore();
   const { addSpace, addFolder, addList } = useWorkspaceStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
@@ -122,13 +122,14 @@ export function CreateItemModal() {
       case 'space':
         return `/workspaces/${parentId}/spaces`;
       case 'folder':
-        // TODO: Implement when backend supports folders
         return `/spaces/${parentId}/folders`;
       case 'list':
+        // Lists are always created at the space level
         if (parentType === 'space') {
           return `/spaces/${parentId}/lists`;
         } else if (parentType === 'folder') {
-          return `/folders/${parentId}/lists`;
+          // Use spaceId from modal store
+          return `/spaces/${spaceId}/lists`;
         }
         return `/spaces/${parentId}/lists`;
       default:
@@ -144,10 +145,15 @@ export function CreateItemModal() {
 
     try {
       const endpoint = getEndpoint();
-      const payload = {
+      const payload: any = {
         name: values.name,
         ...(values.color && { color: selectedColor }),
       };
+
+      // If creating a list inside a folder, add folderId to payload
+      if (type === 'list' && parentType === 'folder') {
+        payload.folderId = parentId;
+      }
 
       const response = await api.post(endpoint, payload);
       const createdItem = response.data.data;
