@@ -1,94 +1,178 @@
 'use client';
 
-import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useState } from 'react';
 import { Task } from '@/types';
 import { TaskCard } from './TaskCard';
+import { DropIndicator } from './DropIndicator';
 
 interface KanbanColumnProps {
-  column: {
-    id: string;
-    title: string;
-    color: string;
-    bgColor: string;
-  };
-  tasks: Task[];
+  title: string;
+  column: string;
+  headingColor: string;
+  cards: Task[];
+  setCards: (cards: Task[]) => void;
+  onStatusChange: (taskId: string, newStatus: Task['status']) => void;
+  canChangeStatus: boolean;
   spaceMembers: any[];
-  canDrag: boolean;
-  onAddTask?: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
-export function KanbanColumn({ column, tasks, spaceMembers, canDrag, onAddTask }: KanbanColumnProps) {
-  const { setNodeRef } = useSortable({
-    id: column.id,
-    data: {
-      type: 'column',
-    },
-  });
+export function KanbanColumn({
+  title,
+  column,
+  headingColor,
+  cards,
+  setCards,
+  onStatusChange,
+  canChangeStatus,
+  spaceMembers,
+  onDragStart,
+  onDragEnd,
+}: KanbanColumnProps) {
+  const [active, setActive] = useState(false);
 
-  const getColumnBadgeStyle = () => {
-    if (column.id === 'inprogress') {
-      return {
-        backgroundColor: '#135bec33',
-        color: '#135bec',
-      };
+  const handleDragStart = (e: React.DragEvent, card: Task) => {
+    if (!canChangeStatus) {
+      e.preventDefault();
+      return;
     }
-    if (column.id === 'done') {
-      return {
-        backgroundColor: '#10b98133',
-        color: '#10b981',
-      };
-    }
-    return {
-      backgroundColor: '#e2e8f0',
-      color: '#64748b',
-    };
+    e.dataTransfer.setData('cardId', card._id);
+    e.dataTransfer.effectAllowed = 'move';
+    onDragStart();
   };
 
-  return (
-    <div
-      ref={setNodeRef}
-      className="kanban-column flex flex-col gap-3 sm:gap-4 flex-1 w-full md:min-w-0"
-    >
-      {/* Column Header */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-sm sm:text-base text-slate-700 dark:text-slate-300">{column.title}</h3>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={getColumnBadgeStyle()}
-          >
-            {tasks.length}
-          </span>
-        </div>
-        {onAddTask && (
-          <button
-            onClick={onAddTask}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-primary flex items-center"
-          >
-            <span className="material-symbols-outlined text-[18px] sm:text-[20px]">add_circle</span>
-          </button>
-        )}
-      </div>
+  const handleDragEnd = (e: React.DragEvent) => {
+    const cardId = e.dataTransfer.getData('cardId');
 
-      {/* Tasks */}
-      <SortableContext items={tasks.map((t) => t._id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-3 sm:gap-4 min-h-[200px] md:flex-1 overflow-y-auto p-2 rounded-lg bg-slate-50/50 dark:bg-slate-900/20 scrollbar-hide">
-          {tasks.map((task) => (
+    setActive(false);
+    clearHighlights();
+    
+    // Always call onDragEnd to reset parent state
+    onDragEnd();
+
+    const indicators = getIndicators();
+    const { element } = getNearestIndicator(e, indicators);
+
+    const before = element?.dataset.before || '-1';
+
+    if (before !== cardId) {
+      let copy = [...cards];
+
+      let cardToTransfer = copy.find((c) => c._id === cardId);
+      if (!cardToTransfer) return;
+
+      const oldStatus = cardToTransfer.status;
+      cardToTransfer = { ...cardToTransfer, status: column as Task['status'] };
+
+      copy = copy.filter((c) => c._id !== cardId);
+
+      const moveToBack = before === '-1';
+
+      if (moveToBack) {
+        copy.push(cardToTransfer);
+      } else {
+        const insertAtIndex = copy.findIndex((el) => el._id === before);
+        if (insertAtIndex === undefined) return;
+
+        copy.splice(insertAtIndex, 0, cardToTransfer);
+      }
+
+      setCards(copy);
+
+      // Notify parent of status change if column changed
+      if (oldStatus !== column) {
+        onStatusChange(cardId, column as Task['status']);
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    highlightIndicator(e);
+    setActive(true);
+  };
+
+  const clearHighlights = (els?: HTMLElement[]) => {
+    const indicators = els || getIndicators();
+
+    indicators.forEach((i) => {
+      i.style.opacity = '0';
+    });
+  };
+
+  const highlightIndicator = (e: React.DragEvent) => {
+    const indicators = getIndicators();
+
+    clearHighlights(indicators);
+
+    const el = getNearestIndicator(e, indicators);
+
+    el.element.style.opacity = '1';
+  };
+
+  const getNearestIndicator = (e: React.DragEvent, indicators: HTMLElement[]) => {
+    const DISTANCE_OFFSET = 50;
+
+    const el = indicators.reduce(
+      (closest, child) => {
+        const box = child.getBoundingClientRect();
+
+        const offset = e.clientY - (box.top + DISTANCE_OFFSET);
+
+        if (offset < 0 && offset > closest.offset) {
+          return { offset: offset, element: child };
+        } else {
+          return closest;
+        }
+      },
+      {
+        offset: Number.NEGATIVE_INFINITY,
+        element: indicators[indicators.length - 1],
+      }
+    );
+
+    return el;
+  };
+
+  const getIndicators = (): HTMLElement[] => {
+    return Array.from(document.querySelectorAll(`[data-column="${column}"]`));
+  };
+
+  const handleDragLeave = () => {
+    clearHighlights();
+    setActive(false);
+  };
+
+  const filteredCards = cards.filter((c) => c.status === column);
+
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className={`font-semibold text-sm ${headingColor}`}>{title}</h3>
+        <span className="rounded text-sm text-muted-foreground">{filteredCards.length}</span>
+      </div>
+      <div
+        onDrop={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`h-full w-full rounded-lg p-2 transition-colors overflow-y-auto ${
+          active ? 'bg-muted/50' : 'bg-muted/20'
+        }`}
+      >
+        {filteredCards.map((c) => {
+          return (
             <TaskCard
-              key={task._id}
-              task={task}
+              key={c._id}
+              task={c}
+              handleDragStart={handleDragStart}
+              canDrag={canChangeStatus}
               spaceMembers={spaceMembers}
-              canDrag={canDrag}
-              columnId={column.id}
             />
-          ))}
-          {tasks.length === 0 && (
-            <div className="text-center py-6 sm:py-8 text-slate-400 text-xs sm:text-sm">
-              Drop tasks here
-            </div>
-          )}
-        </div>
-      </SortableContext>
+          );
+        })}
+        <DropIndicator beforeId={null} column={column} />
+      </div>
     </div>
   );
 }

@@ -1,195 +1,32 @@
 'use client';
 
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { motion } from 'framer-motion';
 import { Task } from '@/types';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format } from 'date-fns';
+import { DropIndicator } from './DropIndicator';
 
 interface TaskCardProps {
   task: Task;
+  handleDragStart: (e: React.DragEvent, task: Task) => void;
+  canDrag: boolean;
   spaceMembers: any[];
-  isDragging?: boolean;
-  isOverlay?: boolean;
-  canDrag?: boolean;
-  columnId?: string;
 }
 
-export function TaskCard({
-  task,
-  spaceMembers,
-  isDragging,
-  isOverlay,
-  canDrag = true,
-  columnId,
-}: TaskCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: isSortableDragging,
-  } = useSortable({
-    id: task._id,
-    disabled: !canDrag,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const priorityConfig = {
-    urgent: { label: 'Urgent', color: '#ef4444', bg: '#fee2e2' },
-    high: { label: 'High', color: '#f97316', bg: '#ffedd5' },
-    medium: { label: 'Medium', color: '#3b82f6', bg: '#dbeafe' },
-    low: { label: 'Low', color: '#10b981', bg: '#d1fae5' },
-  };
-
-  const priority = priorityConfig[task.priority || 'medium'];
-
-  const assignee = task.assignee
-    ? typeof task.assignee === 'string'
-      ? spaceMembers.find((m: any) => {
-          const memberId = typeof m.user === 'string' ? m.user : m.user?._id;
-          return memberId === task.assignee;
-        })
-      : task.assignee
-    : null;
-
-  const assigneeName = assignee
-    ? typeof assignee.user === 'string'
-      ? assignee.user
-      : assignee.user?.name || assignee.name || 'Unknown'
-    : null;
-
-  const assigneeAvatar = assignee
-    ? typeof assignee.user === 'string'
-      ? null
-      : assignee.user?.avatar || assignee.avatar
-    : null;
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const isInProgress = columnId === 'inprogress';
-  const isDone = columnId === 'done';
-
+export function TaskCard({ task, handleDragStart, canDrag, spaceMembers }: TaskCardProps) {
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`
-        w-full bg-white dark:bg-slate-800 p-3 sm:p-3.5 rounded-lg shadow-md border-2 border-slate-200 dark:border-slate-700/50 
-        hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-grab
-        ${isInProgress ? 'border-l-4 border-l-primary' : ''}
-        ${isDone ? 'bg-slate-50 dark:bg-slate-800/60 opacity-80' : ''}
-        ${isDragging || isOverlay ? 'shadow-2xl rotate-2 scale-105 opacity-90' : ''}
-        ${isSortableDragging ? 'opacity-50' : ''}
-        ${!canDrag ? 'cursor-not-allowed opacity-60' : ''}
-      `}
-    >
-      {/* Header: Priority Badge + Status Icon */}
-      <div className="flex justify-between items-start mb-2 sm:mb-2.5">
-        <span
-          className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded"
-          style={{
-            backgroundColor: priority.bg,
-            color: priority.color,
-          }}
-        >
-          {priority.label}
-        </span>
-        {isDone && (
-          <span className="material-symbols-outlined text-emerald-500 text-[16px] sm:text-[18px]">
-            check_circle
-          </span>
-        )}
-      </div>
-
-      {/* Task Title */}
-      <h4
-        className={`font-semibold leading-tight mb-2 sm:mb-2.5 text-xs sm:text-sm line-clamp-2 ${
-          isDone
-            ? 'text-slate-500 dark:text-slate-400 line-through'
-            : 'text-slate-900 dark:text-slate-50'
-        }`}
+    <>
+      <DropIndicator beforeId={task._id} column={task.status} />
+      <motion.div
+        layout
+        layoutId={task._id}
+        draggable={canDrag}
+        onDragStart={(e) => handleDragStart(e as any, task)}
+        className={`
+          w-full rounded border border-border bg-card p-3 mb-2
+          ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-60'}
+        `}
       >
-        {task.title}
-      </h4>
-
-      {/* Footer: Deadline/Status + Avatar */}
-      <div className="flex items-center justify-between text-[10px] sm:text-[11px]">
-        {task.deadline ? (
-          (() => {
-            const now = new Date();
-            const deadline = new Date(task.deadline);
-            const isOverdue = now > deadline && !isDone;
-            const hoursUntilDeadline = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60);
-            const isApproaching = hoursUntilDeadline > 0 && hoursUntilDeadline < 24 && !isDone;
-            const completedOnTime = isDone && task.completedAt && new Date(task.completedAt) <= deadline;
-
-            return (
-              <div className={`flex items-center gap-1 font-medium ${
-                isOverdue ? 'text-red-600 dark:text-red-400' :
-                isApproaching ? 'text-amber-600 dark:text-amber-400' :
-                completedOnTime ? 'text-emerald-600 dark:text-emerald-400' :
-                'text-slate-500 dark:text-slate-400'
-              }`}>
-                <span className="material-symbols-outlined text-[14px] sm:text-[16px]">
-                  {isOverdue ? 'error' : completedOnTime ? 'check_circle' : 'schedule'}
-                </span>
-                <span>
-                  {isOverdue ? 'Overdue' : 
-                   completedOnTime ? 'On time' :
-                   format(deadline, 'MMM d, h:mm a')}
-                </span>
-              </div>
-            );
-          })()
-        ) : isInProgress && !isDone ? (
-          <div className="flex items-center gap-1 text-primary font-bold">
-            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">schedule</span>
-            <span>Active</span>
-          </div>
-        ) : isDone ? (
-          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-            <span className="font-medium">
-              {task.updatedAt ? `${format(new Date(task.updatedAt), 'MMM d')}` : 'Done'}
-            </span>
-          </div>
-        ) : task.dueDate ? (
-          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">calendar_today</span>
-            <span className="font-medium">
-              {format(new Date(task.dueDate), 'MMM d')}
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">calendar_today</span>
-            <span className="font-medium">No date</span>
-          </div>
-        )}
-
-        {assigneeName && (
-          <Avatar className={`h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0 ${isDone ? 'grayscale' : ''}`}>
-            {assigneeAvatar && <AvatarImage src={assigneeAvatar} alt={assigneeName} />}
-            <AvatarFallback className="text-[9px] sm:text-[10px] bg-primary text-white">
-              {getInitials(assigneeName)}
-            </AvatarFallback>
-          </Avatar>
-        )}
-      </div>
-    </div>
+        <p className="text-sm text-foreground">{task.title}</p>
+      </motion.div>
+    </>
   );
 }

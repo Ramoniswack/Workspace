@@ -315,8 +315,8 @@ export const ChatWindow = ({ workspaceId, conversationId, userId, type, title }:
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background max-h-[calc(100vh-3.5rem)]">
-      {/* Header */}
+    <div className="flex-1 flex flex-col bg-background h-screen overflow-hidden">
+      {/* Header - Fixed */}
       <div className="h-14 border-b border-border px-6 flex items-center flex-shrink-0">
         <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       </div>

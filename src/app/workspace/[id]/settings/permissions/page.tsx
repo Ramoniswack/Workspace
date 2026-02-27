@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 
 interface Plan {
   features: {
-    accessControlTier: 'none' | 'pro' | 'advanced';
+    accessControlTier: 'none' | 'basic' | 'pro' | 'advanced';
     maxAdmins: number;
   };
 }
@@ -39,7 +39,7 @@ export default function PermissionsSettings() {
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
-  const [accessControlTier, setAccessControlTier] = useState<'none' | 'pro' | 'advanced'>('none');
+  const [accessControlTier, setAccessControlTier] = useState<'none' | 'basic' | 'pro' | 'advanced'>('none');
 
   useEffect(() => {
     if (!isOwner) {
@@ -117,14 +117,16 @@ export default function PermissionsSettings() {
               </div>
               <div>
                 <h3 className="text-white font-semibold">
-                  {accessControlTier === 'none' && 'Basic Access Control'}
+                  {accessControlTier === 'none' && 'No Access Control'}
+                  {accessControlTier === 'basic' && 'Basic Access Control'}
                   {accessControlTier === 'pro' && 'Pro Access Control'}
                   {accessControlTier === 'advanced' && 'Advanced Access Control'}
                 </h3>
                 <p className="text-sm text-gray-400">
-                  {accessControlTier === 'none' && 'Upgrade to unlock advanced permission features'}
-                  {accessControlTier === 'pro' && 'Enhanced role management and task permissions'}
-                  {accessControlTier === 'advanced' && 'Full custom permissions and role creation'}
+                  {accessControlTier === 'none' && 'Upgrade to unlock access control features'}
+                  {accessControlTier === 'basic' && 'Standard permissions with limited list access'}
+                  {accessControlTier === 'pro' && 'Enhanced role management with limited list access'}
+                  {accessControlTier === 'advanced' && 'Full custom permissions and unrestricted access'}
                 </p>
               </div>
             </div>

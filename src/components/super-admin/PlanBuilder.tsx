@@ -39,7 +39,7 @@ interface Plan {
     hasGroupChat: boolean;
     messageLimit: number;
     announcementCooldown: number;
-    accessControlTier: 'none' | 'pro' | 'advanced';
+    accessControlTier: 'none' | 'basic' | 'pro' | 'advanced';
   };
   isActive: boolean;
 }
@@ -373,19 +373,35 @@ export default function PlanBuilder() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
+                    <Shield className="w-4 h-4 text-green-500" />
+                    <span className="text-gray-300">
+                      {plan.features.maxAdmins === -1
+                        ? "Unlimited"
+                        : plan.features.maxAdmins}{" "}
+                      Admins
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
                     <Lock className="w-4 h-4 text-green-500" />
                     <span className="text-gray-300">
-                      {plan.features.accessControlTier === 'none' ? 'Basic' : 
+                      {plan.features.accessControlTier === 'none' ? 'No Access Control' : 
+                       plan.features.accessControlTier === 'basic' ? 'Basic' :
                        plan.features.accessControlTier === 'pro' ? 'Pro' : 'Advanced'} Access Control
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <MessageSquare className="w-4 h-4 text-orange-500" />
                     <span className="text-gray-300">
-                      {plan.features.messageLimit === -1
-                        ? "Unlimited"
-                        : plan.features.messageLimit}{" "}
-                      Messages
+                      {plan.features.hasGroupChat ? (
+                        <>
+                          Group Chat ({plan.features.messageLimit === -1
+                            ? "Unlimited"
+                            : plan.features.messageLimit}{" "}
+                          messages/month)
+                        </>
+                      ) : (
+                        'Group Chat: Disabled'
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
@@ -758,30 +774,15 @@ function PlanForm({
           </label>
           <select
             value={formData.accessControlTier}
-            onChange={(e) => setFormData({ ...formData, accessControlTier: e.target.value as 'none' | 'pro' | 'advanced' })}
+            onChange={(e) => setFormData({ ...formData, accessControlTier: e.target.value as 'none' | 'basic' | 'pro' | 'advanced' })}
             className="w-full bg-[#111111] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
           >
-            <option value="none">None - Basic permissions only</option>
+            <option value="none">None - No access control</option>
+            <option value="basic">Basic - Standard permissions</option>
             <option value="pro">Pro - Enhanced role management</option>
             <option value="advanced">Advanced - Full custom permissions</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">Level of access control features</p>
-        </div>
-        <div className="flex items-center gap-3 p-3 bg-[#111111] border border-gray-700 rounded-lg">
-          <input
-            type="checkbox"
-            id="accessControl"
-            checked={formData.hasAccessControl}
-            onChange={(e) => setFormData({ ...formData, hasAccessControl: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-600 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
-          />
-          <label htmlFor="accessControl" className="flex-1 flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-            <Shield className="w-4 h-4 text-green-500" />
-            <div>
-              <div className="font-medium">Enable Access Control</div>
-              <div className="text-xs text-gray-500">Allow custom permissions and role management</div>
-            </div>
-          </label>
+          <p className="text-xs text-gray-500 mt-1">Access control is managed by tier selection. Basic and Pro tiers restrict Full Access permissions on lists.</p>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { clearAuthData, getCurrentUser } from '@/lib/auth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useThemeStore } from '@/store/useThemeStore';
@@ -311,6 +312,14 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">Welcome back, {userName}</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Pricing Link */}
+              <Link
+                href="/pricing"
+                className="text-sm font-medium text-gray-900 dark:text-white hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              >
+                Pricing
+              </Link>
+
               {/* Notification Bell */}
               <button
                 onClick={() => router.push('/notifications')}
@@ -324,21 +333,6 @@ export default function DashboardPage() {
                   </span>
                 )}
               </button>
-
-              {/* Upgrade Button (for non-paid users) */}
-              {subscription && !subscription.isPaid && (
-                <button
-                  onClick={() => {
-                    setUpgradeReason('workspace');
-                    setShowUpgradeModal(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-all shadow-lg shadow-purple-500/30"
-                  title="Upgrade Plan"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span className="text-sm font-medium hidden sm:inline">Upgrade</span>
-                </button>
-              )}
 
               {/* Theme Toggle */}
               <button

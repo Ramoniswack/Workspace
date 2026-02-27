@@ -474,7 +474,7 @@ export default function ListView() {
             <span className="text-foreground font-medium truncate">{list?.name || 'List'}</span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               <button
                 onClick={() => router.push(`/workspace/${workspaceId}/spaces/${spaceId}`)}
@@ -483,33 +483,101 @@ export default function ListView() {
                 <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-2xl font-bold truncate">{list?.name}</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-lg sm:text-2xl font-bold truncate">{list?.name}</h1>
+                  
+                  {/* View Tabs - Next to Title */}
+                  <div className="hidden md:flex items-center gap-1 bg-muted p-1 rounded-lg">
+                    <button
+                      onClick={() => setView('board')}
+                      title="Kanban Board View"
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                        view === 'board'
+                          ? 'bg-background shadow-sm'
+                          : 'hover:bg-background/50'
+                      }`}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Kanban</span>
+                    </button>
+                    <button
+                      onClick={() => setView('list')}
+                      title="List View"
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                        view === 'list'
+                          ? 'bg-background shadow-sm'
+                          : 'hover:bg-background/50'
+                      }`}
+                    >
+                      <LayoutList className="w-3.5 h-3.5" />
+                      <span>List</span>
+                    </button>
+                    <button
+                      onClick={() => setView('activity')}
+                      title="Activity Log View"
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                        view === 'activity'
+                          ? 'bg-background shadow-sm'
+                          : 'hover:bg-background/50'
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Activity</span>
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                   {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-              {/* List Members Display */}
-              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-accent/50 rounded-lg flex-shrink-0">
-                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-                <span className="text-xs sm:text-sm font-medium">{listMembers.length}</span>
-                <div className="flex -space-x-2 ml-1">
+              {/* View Tabs - Mobile Only */}
+              <div className="flex md:hidden items-center gap-1 bg-muted p-1 rounded-lg flex-1">
+                <button
+                  onClick={() => setView('board')}
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 flex-1 justify-center ${
+                    view === 'board' ? 'bg-background shadow-sm' : 'hover:bg-background/50'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setView('list')}
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 flex-1 justify-center ${
+                    view === 'list' ? 'bg-background shadow-sm' : 'hover:bg-background/50'
+                  }`}
+                >
+                  <LayoutList className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setView('activity')}
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 flex-1 justify-center ${
+                    view === 'activity' ? 'bg-background shadow-sm' : 'hover:bg-background/50'
+                  }`}
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* List Members Display - Simplified */}
+              <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+                <div className="flex -space-x-2">
                   {listMembers.slice(0, 3).map((member: any, idx: number) => {
                     const user = typeof member.user === 'object' ? member.user : member;
                     return (
-                      <Avatar key={idx} className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110" onClick={() => setShowListMemberManagement(true)}>
+                      <Avatar key={idx} className="w-7 h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110" onClick={() => setShowListMemberManagement(true)}>
                         <AvatarImage src={user?.avatar} />
-                        <AvatarFallback className="text-[10px] sm:text-xs bg-blue-600 text-white">
+                        <AvatarFallback className="text-xs bg-blue-600 text-white">
                           {user ? getInitials(user.name) : '?'}
                         </AvatarFallback>
                       </Avatar>
                     );
                   })}
                   {listMembers.length > 3 && (
-                    <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110 bg-muted" onClick={() => setShowListMemberManagement(true)}>
-                      <AvatarFallback className="text-[10px] sm:text-xs font-semibold">
+                    <Avatar className="w-7 h-7 border-2 border-background cursor-pointer hover:z-10 transition-transform hover:scale-110 bg-muted" onClick={() => setShowListMemberManagement(true)}>
+                      <AvatarFallback className="text-xs font-semibold">
                         +{listMembers.length - 3}
                       </AvatarFallback>
                     </Avatar>
@@ -590,6 +658,7 @@ export default function ListView() {
                     listId={listId}
                     listName={list?.name || 'List'}
                     spaceId={spaceId}
+                    workspaceId={workspaceId}
                   />
                 </>
               )}
@@ -699,47 +768,6 @@ export default function ListView() {
               )}
             </div>
           </div>
-
-          {/* View Tabs */}
-          <div className="flex items-center gap-0.5 sm:gap-1 mt-3 sm:mt-4 bg-muted p-0.5 sm:p-1 rounded-lg w-full sm:w-fit overflow-x-auto">
-            <button
-              onClick={() => setView('board')}
-              title="Kanban Board View"
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
-                view === 'board'
-                  ? 'bg-background shadow-sm'
-                  : 'hover:bg-background/50'
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Kanban</span>
-            </button>
-            <button
-              onClick={() => setView('list')}
-              title="List View"
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
-                view === 'list'
-                  ? 'bg-background shadow-sm'
-                  : 'hover:bg-background/50'
-              }`}
-            >
-              <LayoutList className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">List</span>
-            </button>
-
-            <button
-              onClick={() => setView('activity')}
-              title="Activity Log View"
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center ${
-                view === 'activity'
-                  ? 'bg-background shadow-sm'
-                  : 'hover:bg-background/50'
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Activity</span>
-            </button>
-          </div>
         </div>
       </header>
 
@@ -790,6 +818,7 @@ export default function ListView() {
             tasks={filteredTasks}
             onStatusChange={handleStatusChange}
             canChangeStatus={!isReadOnly && (userRole === 'owner' || userRole === 'admin' || (isListMember && (listPermissionLevel === 'FULL' || listPermissionLevel === 'EDIT')))}
+            canDelete={!isReadOnly && (userRole === 'owner' || userRole === 'admin' || (isListMember && listPermissionLevel === 'FULL'))}
             spaceMembers={space?.members || []}
           />
         )}

@@ -1,12 +1,14 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Zap, X } from "lucide-react";
-import { api } from "@/lib/axios";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Check, Loader2, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { api } from '@/lib/axios';
+import { toast } from 'sonner';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useSubscription } from '@/hooks/useSubscription';
 
 interface Plan {
   _id: string;
@@ -30,23 +32,20 @@ interface Plan {
   isActive: boolean;
 }
 
-interface PlansModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  currentPlanName?: string;
-  whatsappNumber: string;
-}
-
-export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappNumber }: PlansModalProps) {
+export default function PricingPage() {
+  const router = useRouter();
+  const { whatsappNumber } = useSystemSettings();
+  const { subscription } = useSubscription();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchPlans();
-    }
-  }, [isOpen]);
+    fetchPlans();
+  }, []);
+
+  const handleBackToDashboard = () => {
+    router.push('/dashboard');
+  };
 
   const fetchPlans = async () => {
     try {
@@ -67,7 +66,6 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
     const message = `Hi, I would like to upgrade to the ${plan.name} plan ($${plan.price}/month). Please help me with the upgrade process.`;
     const whatsappUrl = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
-    onClose();
   };
 
   const formatLimit = (value: number) => {
@@ -75,7 +73,7 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
   };
 
   const isCurrentPlan = (planName: string) => {
-    return planName.toLowerCase() === currentPlanName?.toLowerCase();
+    return planName.toLowerCase() === subscription?.plan?.name?.toLowerCase();
   };
 
   const getFeaturesList = (plan: Plan) => {
@@ -112,24 +110,44 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0">
-        <div className="p-6 border-b">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">Choose Your Plan</DialogTitle>
-            <DialogDescription>
-              Select the plan that best fits your needs. You can upgrade or downgrade anytime.
-            </DialogDescription>
-          </DialogHeader>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      {/* Dashboard-style Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleBackToDashboard}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Pricing Plans</h1>
+              </div>
+            </div>
+            <nav className="flex items-center gap-6">
+              <button
+                onClick={handleBackToDashboard}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                Dashboard
+              </button>
+            </nav>
+          </div>
         </div>
+      </header>
 
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
           </div>
         ) : (
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <>
+            {/* Pricing Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
               {plans.map((plan) => {
                 const isCurrent = isCurrentPlan(plan.name);
                 const isFree = plan.price === 0;
@@ -138,10 +156,10 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                 return (
                   <div
                     key={plan._id}
-                    className={`relative rounded-xl border-2 p-6 transition-all flex flex-col ${
+                    className={`relative rounded-2xl border-2 p-8 transition-all flex flex-col bg-white dark:bg-gray-800 ${
                       isCurrent
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700'
+                        ? 'border-purple-500 shadow-xl shadow-purple-500/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-lg'
                     }`}
                   >
                     {/* Current Plan Badge */}
@@ -151,7 +169,7 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                       </Badge>
                     )}
 
-                    {/* Popular Badge for mid-tier plans */}
+                    {/* Popular Badge */}
                     {!isFree && plan.price < 100 && !isCurrent && (
                       <Badge className="absolute -top-3 right-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white">
                         Popular
@@ -159,30 +177,30 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                     )}
 
                     {/* Plan Header */}
-                    <div className="text-center mb-6">
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                    <div className="text-center mb-8">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                         {plan.name}
                       </h3>
-                      <div className="flex items-baseline justify-center gap-1">
-                        <span className="text-4xl font-extrabold text-gray-900 dark:text-white">
+                      <div className="flex items-baseline justify-center gap-1 mb-3">
+                        <span className="text-5xl font-extrabold text-gray-900 dark:text-white">
                           ${plan.price}
                         </span>
                         <span className="text-gray-500 dark:text-gray-400">/month</span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         {plan.description}
                       </p>
                     </div>
 
-                    {/* Features List - Flex grow to push button to bottom */}
-                    <ul className="space-y-3 mb-6 flex-grow">
+                    {/* Features List */}
+                    <ul className="space-y-4 mb-8 flex-grow">
                       {features.map((feature, index) => {
                         // Check if this is the Group Chat feature
                         const isGroupChat = feature.includes('Group Chat');
                         const isChatDisabled = !plan.features.hasGroupChat;
                         
                         return (
-                          <li key={index} className="flex items-start gap-2">
+                          <li key={index} className="flex items-start gap-3">
                             {isChatDisabled && isGroupChat ? (
                               <X className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                             ) : (
@@ -196,12 +214,13 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                       })}
                     </ul>
 
-                    {/* Action Button - Stuck to bottom */}
+                    {/* Action Button */}
                     <div className="mt-auto">
                       {isCurrent ? (
                         <Button
                           disabled
                           className="w-full bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
+                          size="lg"
                         >
                           Current Plan
                         </Button>
@@ -210,6 +229,7 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                           disabled
                           variant="outline"
                           className="w-full"
+                          size="lg"
                         >
                           Free Plan
                         </Button>
@@ -217,9 +237,10 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                         <Button
                           onClick={() => handleBuyPlan(plan)}
                           className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                          size="lg"
                         >
-                          <Zap className="w-4 h-4 mr-2" />
-                          Buy Now
+                          <Zap className="w-5 h-5 mr-2" />
+                          Get Started
                         </Button>
                       )}
                     </div>
@@ -227,16 +248,30 @@ export default function PlansModal({ isOpen, onClose, currentPlanName, whatsappN
                 );
               })}
             </div>
-          </div>
-        )}
 
-        {/* Footer Note */}
-        <div className="p-6 border-t bg-blue-50 dark:bg-blue-900/20">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            <strong>Note:</strong> Clicking "Buy Now" will open WhatsApp to complete your purchase. Our team will assist you with the upgrade process.
-          </p>
-        </div>
-      </DialogContent>
-    </Dialog>
+            {/* FAQ or Additional Info */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                Need Help Choosing?
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Contact us via WhatsApp and we'll help you find the perfect plan for your team's needs.
+              </p>
+              <Button
+                onClick={() => {
+                  const message = 'Hi, I need help choosing the right plan for my team.';
+                  const whatsappUrl = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+                  window.open(whatsappUrl, '_blank');
+                }}
+                variant="outline"
+                className="border-purple-600 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+              >
+                Contact Sales
+              </Button>
+            </div>
+          </>
+        )}
+      </main>
+    </div>
   );
 }

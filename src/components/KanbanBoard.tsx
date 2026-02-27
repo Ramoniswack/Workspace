@@ -1,123 +1,116 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-} from '@dnd-kit/core';
+import { useState, useEffect } from 'react';
 import { Task } from '@/types';
 import confetti from 'canvas-confetti';
 import { KanbanColumn } from './kanban/KanbanColumn';
-import { TaskCard } from './kanban/TaskCard';
+import { DeleteZone } from './kanban/DeleteZone';
+import { DeleteConfirmationModal } from './kanban/DeleteConfirmationModal';
+import { useTaskStore } from '@/store/useTaskStore';
 
 interface KanbanBoardProps {
   tasks: Task[];
   onStatusChange: (taskId: string, newStatus: Task['status']) => void;
   canChangeStatus: boolean;
+  canDelete?: boolean;
   spaceMembers: any[];
 }
 
 const COLUMNS = [
-  { id: 'todo', title: 'To Do', color: '#64748b', bgColor: '#f1f5f9' },
-  { id: 'inprogress', title: 'In Progress', color: '#135bec', bgColor: '#135bec1A' },
-  { id: 'review', title: 'In Review', color: '#8b5cf6', bgColor: '#f3e8ff' },
-  { id: 'done', title: 'Done', color: '#10b981', bgColor: '#d1fae5' },
+  { id: 'todo', title: 'To Do', headingColor: 'text-slate-600 dark:text-slate-400' },
+  { id: 'inprogress', title: 'In Progress', headingColor: 'text-blue-600 dark:text-blue-400' },
+  { id: 'review', title: 'In Review', headingColor: 'text-purple-600 dark:text-purple-400' },
+  { id: 'done', title: 'Done', headingColor: 'text-green-600 dark:text-green-400' },
 ] as const;
 
-export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, spaceMembers }: KanbanBoardProps) {
-  const [activeId, setActiveId] = useState<string | null>(null);
+export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, canDelete = false, spaceMembers }: KanbanBoardProps) {
+  const [cards, setCards] = useState<Task[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isOverDeleteZone, setIsOverDeleteZone] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { deleteTask } = useTaskStore();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    })
-  );
-
-  const tasksByStatus = useMemo(() => {
-    return {
-      todo: tasks.filter((t) => t.status === 'todo'),
-      inprogress: tasks.filter((t) => t.status === 'inprogress'),
-      review: tasks.filter((t) => t.status === 'review'),
-      done: tasks.filter((t) => t.status === 'done'),
-    };
+  // Sync tasks prop with local state
+  useEffect(() => {
+    setCards(tasks);
   }, [tasks]);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+  const handleDragStart = () => {
+    if (canChangeStatus) {
+      setIsDragging(true);
+    }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    setIsOverDeleteZone(false);
+  };
+
+  const handleStatusChange = (taskId: string, newStatus: Task['status']) => {
+    if (!canChangeStatus) return;
     
-    // Always clear active state first
-    setActiveId(null);
+    console.log('[KanbanBoard] Status change:', taskId, newStatus);
+    onStatusChange(taskId, newStatus);
     
-    if (!over || !canChangeStatus) {
-      console.log('[KanbanBoard] Drag cancelled - no drop target or no permission');
-      return;
+    // Confetti for done tasks
+    if (newStatus === 'done') {
+      setTimeout(() => {
+        triggerConfetti();
+      }, 100);
     }
+  };
 
-    const taskId = active.id as string;
-    const overId = over.id as string;
-
-    console.log('[KanbanBoard] Drag ended:', { taskId, overId });
-
-    // Find the task being dragged
-    const task = tasks.find((t) => t._id === taskId);
-    if (!task) {
-      console.log('[KanbanBoard] Task not found:', taskId);
-      return;
-    }
-
-    // Check if dropped on a column
-    const targetColumn = COLUMNS.find((col) => col.id === overId);
-    if (targetColumn) {
-      console.log('[KanbanBoard] Dropped on column:', targetColumn.id, 'Current status:', task.status);
-      
-      if (task.status !== targetColumn.id) {
-        console.log('[KanbanBoard] Status change detected, calling onStatusChange');
-        // Update task status
-        onStatusChange(taskId, targetColumn.id as Task['status']);
-        
-        // Confetti effect when task moved to done
-        if (targetColumn.id === 'done') {
-          setTimeout(() => {
-            triggerConfetti();
-          }, 100);
-        }
-      } else {
-        console.log('[KanbanBoard] Task already in this column, no change needed');
-      }
-    } else {
-      console.log('[KanbanBoard] Not dropped on a column, checking if dropped on another task');
-      // If dropped on another task, find which column that task is in
-      const targetTask = tasks.find((t) => t._id === overId);
-      if (targetTask && targetTask.status !== task.status) {
-        console.log('[KanbanBoard] Dropped on task in different column, moving to:', targetTask.status);
-        onStatusChange(taskId, targetTask.status);
-        
-        if (targetTask.status === 'done') {
-          setTimeout(() => {
-            triggerConfetti();
-          }, 100);
-        }
+  const handleDeleteZoneDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const cardId = e.dataTransfer.getData('cardId');
+    
+    // Reset drag state first
+    setIsDragging(false);
+    setIsOverDeleteZone(false);
+    
+    if (cardId && canDelete) {
+      const task = cards.find((c) => c._id === cardId);
+      if (task) {
+        setTaskToDelete(task);
+        setShowDeleteModal(true);
       }
     }
+  };
+
+  const handleDeleteZoneDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsOverDeleteZone(true);
+  };
+
+  const handleDeleteZoneDragLeave = () => {
+    setIsOverDeleteZone(false);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (taskToDelete) {
+      try {
+        console.log('[KanbanBoard] Deleting task:', taskToDelete._id);
+        await deleteTask(taskToDelete._id);
+      } catch (error) {
+        console.error('[KanbanBoard] Failed to delete task:', error);
+      } finally {
+        // Always reset state
+        setShowDeleteModal(false);
+        setTaskToDelete(null);
+        setIsDragging(false);
+        setIsOverDeleteZone(false);
+      }
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setTaskToDelete(null);
+    setIsDragging(false);
+    setIsOverDeleteZone(false);
   };
 
   const triggerConfetti = () => {
@@ -153,38 +146,46 @@ export function KanbanBoard({ tasks, onStatusChange, canChangeStatus, spaceMembe
     }, 250);
   };
 
-  const activeTask = activeId ? tasks.find((t) => t._id === activeId) : null;
-
   return (
-    <DndContext
-      sensors={canChangeStatus ? sensors : []}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      {/* Kanban Board Container - Vertical on mobile, horizontal on desktop */}
-      <div className="flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-4 p-3 sm:p-4 md:p-6 h-auto md:h-[calc(100vh-280px)] overflow-visible md:overflow-hidden">
-        {COLUMNS.map((column) => (
-          <KanbanColumn
-            key={column.id}
-            column={column}
-            tasks={tasksByStatus[column.id as keyof typeof tasksByStatus]}
-            spaceMembers={spaceMembers}
-            canDrag={canChangeStatus}
-          />
-        ))}
+    <>
+      <div className="h-[calc(100vh-220px)] w-full px-6 pb-6 overflow-hidden">
+        <div className="flex h-full w-full gap-3">
+          {COLUMNS.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              title={column.title}
+              column={column.id}
+              headingColor={column.headingColor}
+              cards={cards}
+              setCards={setCards}
+              onStatusChange={handleStatusChange}
+              canChangeStatus={canChangeStatus}
+              spaceMembers={spaceMembers}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            />
+          ))}
+        </div>
       </div>
 
-      <DragOverlay>
-        {activeTask ? (
-          <TaskCard
-            task={activeTask}
-            spaceMembers={spaceMembers}
-            isDragging
-            isOverlay
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      {/* Delete Zone - Bottom Center - Only show when dragging AND user has delete permission */}
+      {canDelete && isDragging && (
+        <DeleteZone
+          isVisible={true}
+          isOver={isOverDeleteZone}
+          onDrop={handleDeleteZoneDrop}
+          onDragOver={handleDeleteZoneDragOver}
+          onDragLeave={handleDeleteZoneDragLeave}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        task={taskToDelete}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+    </>
   );
 }

@@ -246,42 +246,44 @@ export function CreateItemModal() {
               )}
             />
 
-            {/* Color Picker */}
-            <FormField
-              control={form.control}
-              name="color"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-2">
-                    <Palette className="h-4 w-4" />
-                    Color (Optional)
-                  </FormLabel>
-                  <FormControl>
-                    <div className="flex flex-wrap gap-2">
-                      {COLORS.map((color) => (
-                        <button
-                          key={color.value}
-                          type="button"
-                          onClick={() => {
-                            setSelectedColor(color.value);
-                            field.onChange(color.value);
-                          }}
-                          className={cn(
-                            'h-8 w-8 rounded-md transition-all',
-                            color.class,
-                            selectedColor === color.value
-                              ? 'ring-2 ring-offset-2 ring-slate-900 scale-110'
-                              : 'hover:scale-105'
-                          )}
-                          title={color.name}
-                        />
-                      ))}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Color Picker - Only show for folders */}
+            {type === 'folder' && (
+              <FormField
+                control={form.control}
+                name="color"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Palette className="h-4 w-4" />
+                      Color (Optional)
+                    </FormLabel>
+                    <FormControl>
+                      <div className="flex flex-wrap gap-2">
+                        {COLORS.map((color) => (
+                          <button
+                            key={color.value}
+                            type="button"
+                            onClick={() => {
+                              setSelectedColor(color.value);
+                              field.onChange(color.value);
+                            }}
+                            className={cn(
+                              'h-8 w-8 rounded-md transition-all',
+                              color.class,
+                              selectedColor === color.value
+                                ? 'ring-2 ring-offset-2 ring-slate-900 scale-110'
+                                : 'hover:scale-105'
+                            )}
+                            title={color.name}
+                          />
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <DialogFooter>
               <Button

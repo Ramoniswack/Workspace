@@ -57,12 +57,12 @@ export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId
     }
   }, []);
 
-  // Check if user can create content (only for spaces)
+  // Check if user can create content
   useEffect(() => {
-    if (item.type === 'space' && userId) {
+    if (userId) {
       setCanCreateContent(isAdminOrOwner);
     }
-  }, [item.type, userId, isAdminOrOwner]);
+  }, [userId, isAdminOrOwner]);
 
   const isExpanded = expandedIds.includes(item._id);
   const isFavorite = favoriteIds.includes(item._id);
@@ -90,7 +90,9 @@ export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId
       case 'space':
         return <Square className="h-4 w-4 text-blue-500 dark:text-blue-400" />;
       case 'folder':
-        return <Folder className="h-4 w-4 text-amber-500 dark:text-amber-400" />;
+        // Use the folder's color if available, otherwise default to amber
+        const folderColor = (item as any).color || '#F59E0B';
+        return <Folder className="h-4 w-4" style={{ color: folderColor }} />;
       case 'list':
         return <Hash className="h-4 w-4 text-slate-500 dark:text-slate-400" />;
       default:
@@ -136,8 +138,8 @@ const getRoute = () => {
     
     // Determine what to create based on current item type
     if (item.type === 'space') {
-      // Create list in space (or folder if folders are implemented)
-      openModal('list', item._id, 'space', item.name);
+      // Create folder in space
+      openModal('folder', item._id, 'space', item.name);
     } else if (item.type === 'folder') {
       // Create list in folder
       openModal('list', item._id, 'folder', item.name);
@@ -202,25 +204,27 @@ const getRoute = () => {
           {/* Hover Actions */}
           {isHovered && isAdminOrOwner && (
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/* Add Button - Only show for spaces if user is owner/admin */}
+              {/* Add Button - For spaces: create folder */}
               {item.type === 'space' && canCreateContent && (
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={handleAdd}
+                  title="Create folder"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
               )}
               
-              {/* Add Button - Only show for folders if user is owner/admin */}
+              {/* Add Button - For folders: create list */}
               {item.type === 'folder' && canCreateContent && (
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={handleAdd}
+                  title="Create list"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -246,38 +250,78 @@ const getRoute = () => {
                     <Star className="h-4 w-4 mr-2" />
                     {isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                   </DropdownMenuItem>
-                  {canCreateContent && item.type === 'space' && (
+                  
+                  {/* Edit options for admin/owner */}
+                  {canCreateContent && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          openModal('editSpace', item._id, 'space', item.name);
-                        }}
-                      >
-                        <MoreHorizontal className="h-4 w-4 mr-2" />
-                        Edit space
-                      </DropdownMenuItem>
+                      {item.type === 'space' && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openModal('editSpace', item._id, 'space', item.name);
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4 mr-2" />
+                          Edit space
+                        </DropdownMenuItem>
+                      )}
+                      {item.type === 'folder' && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openModal('editFolder', item._id, 'folder', item.name);
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4 mr-2" />
+                          Edit folder
+                        </DropdownMenuItem>
+                      )}
+                      {item.type === 'list' && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openModal('editList', item._id, 'list', item.name);
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4 mr-2" />
+                          Edit list
+                        </DropdownMenuItem>
+                      )}
                     </>
                   )}
-                  {canCreateContent && item.type !== 'list' && (
+                  
+                  {/* Create actions */}
+                  {canCreateContent && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (item.type === 'space') {
-                            openModal('list', item._id, 'space', item.name);
-                          } else if (item.type === 'folder') {
+                      {item.type === 'space' && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openModal('folder', item._id, 'space', item.name);
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          New folder
+                        </DropdownMenuItem>
+                      )}
+                      {item.type === 'folder' && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             openModal('list', item._id, 'folder', item.name);
-                          }
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        {item.type === 'space' ? 'New list' : 'New list'}
-                      </DropdownMenuItem>
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          New list
+                        </DropdownMenuItem>
+                      )}
                     </>
                   )}
                 </DropdownMenuContent>

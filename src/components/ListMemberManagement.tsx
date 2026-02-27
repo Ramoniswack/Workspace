@@ -29,6 +29,7 @@ interface ListMemberManagementProps {
   listId: string;
   listName: string;
   spaceId: string;
+  workspaceId: string;
 }
 
 export function ListMemberManagement({
@@ -37,18 +38,32 @@ export function ListMemberManagement({
   listId,
   listName,
   spaceId,
+  workspaceId,
 }: ListMemberManagementProps) {
   const [members, setMembers] = useState<ListMember[]>([]);
   const [spaceMembers, setSpaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [accessControlTier, setAccessControlTier] = useState<'none' | 'basic' | 'pro' | 'advanced'>('none');
 
   useEffect(() => {
     if (open) {
       fetchMembers();
       fetchSpaceMembers();
+      fetchAccessControlTier();
     }
-  }, [open, listId, spaceId]);
+  }, [open, listId, spaceId, workspaceId]);
+
+  const fetchAccessControlTier = async () => {
+    try {
+      const response = await api.get(`/workspaces/${workspaceId}`);
+      const tier = response.data.data?.subscription?.plan?.features?.accessControlTier || 'none';
+      setAccessControlTier(tier);
+    } catch (error) {
+      console.error('Failed to fetch access control tier:', error);
+      setAccessControlTier('none');
+    }
+  };
 
   const fetchMembers = async () => {
     try {
@@ -143,6 +158,8 @@ export function ListMemberManagement({
     return labels[level] || level;
   };
 
+  const isFullAccessLocked = accessControlTier === 'none' || accessControlTier === 'basic' || accessControlTier === 'pro';
+
   const getPermissionBadgeColor = (level: string) => {
     const colors: Record<string, string> = {
       FULL: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400',
@@ -170,11 +187,16 @@ export function ListMemberManagement({
           <DialogDescription>
             Assign members to this list and manage their permissions.
             <br />
-            <strong>Full Access:</strong> Create, edit, delete tasks
+            <strong>Full Access:</strong> Create, edit, delete tasks {isFullAccessLocked && '(Advanced tier only)'}
             <br />
             <strong>Can Edit:</strong> Change status only
             <br />
             <strong>View Only:</strong> View tasks only (default)
+            {isFullAccessLocked && (
+              <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-200">
+                <strong>Note:</strong> Full Access is only available with Advanced Access Control tier. Upgrade your plan to unlock this feature.
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -237,7 +259,13 @@ export function ListMemberManagement({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="FULL">Full Access</SelectItem>
+                              <SelectItem 
+                                value="FULL" 
+                                disabled={isFullAccessLocked}
+                                className={isFullAccessLocked ? 'opacity-50 cursor-not-allowed' : ''}
+                              >
+                                Full Access {isFullAccessLocked && '🔒'}
+                              </SelectItem>
                               <SelectItem value="EDIT">Can Edit</SelectItem>
                               <SelectItem value="VIEW">View Only</SelectItem>
                             </SelectContent>

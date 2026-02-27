@@ -36,46 +36,26 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-[#111111]">
-        <div className="px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <Settings className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold text-white">Super Admin Dashboard</h1>
-                <p className="text-sm text-gray-400">System Management Console</p>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-            >
-              Back to App
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* No Header - Admin pages should not have navbar */}
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs with Back Button */}
       <div className="border-b border-gray-800 bg-[#111111]">
         <div className="px-8">
-          <div className="flex gap-6">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "dashboard"
-                  ? "border-purple-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <LayoutDashboard className="w-4 h-4" />
-                Analytics
-              </div>
-            </button>
+          <div className="flex items-center justify-between py-3">
+            <div className="flex gap-6">
+              <button
+                onClick={() => setActiveTab("dashboard")}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === "dashboard"
+                    ? "border-purple-500 text-white"
+                    : "border-transparent text-gray-400 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <LayoutDashboard className="w-4 h-4" />
+                  Analytics
+                </div>
+              </button>
             <button
               onClick={() => setActiveTab("plans")}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -114,6 +94,13 @@ export default function SuperAdminDashboard() {
                 <MessageSquare className="w-4 h-4" />
                 Feedback
               </div>
+            </button>
+            </div>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              Back to App
             </button>
           </div>
         </div>
