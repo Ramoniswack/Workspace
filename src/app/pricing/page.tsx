@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Loader2, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Check, Loader2, Zap, LogOut, Moon, Sun, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/axios';
 import { toast } from 'sonner';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useThemeStore } from '@/store/useThemeStore';
+import { clearAuthData, getCurrentUser } from '@/lib/auth';
 
 interface Plan {
   _id: string;
@@ -36,15 +39,37 @@ export default function PricingPage() {
   const router = useRouter();
   const { whatsappNumber } = useSystemSettings();
   const { subscription } = useSubscription();
+  const { themeMode, setThemeMode } = useThemeStore();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
+    const user = getCurrentUser();
+    if (user?.name) {
+      setUserName(user.name);
+    }
     fetchPlans();
+    fetchNotificationCount();
   }, []);
+
+  const fetchNotificationCount = async () => {
+    try {
+      const response = await api.get('/notifications/unread-count');
+      setUnreadNotifications(response.data.count || 0);
+    } catch (error) {
+      console.error('Failed to fetch notification count:', error);
+    }
+  };
 
   const handleBackToDashboard = () => {
     router.push('/dashboard');
+  };
+
+  const handleLogout = () => {
+    clearAuthData();
+    router.push('/login');
   };
 
   const fetchPlans = async () => {
@@ -110,30 +135,61 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-muted/30">
       {/* Dashboard-style Header */}
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleBackToDashboard}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              </button>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Pricing Plans</h1>
-              </div>
+      <header className="bg-background border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">TaskFlow</h1>
+              <p className="text-sm text-muted-foreground">Welcome back, {userName}</p>
             </div>
-            <nav className="flex items-center gap-6">
-              <button
-                onClick={handleBackToDashboard}
-                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            <div className="flex items-center gap-3">
+              {/* Dashboard Link */}
+              <Link
+                href="/dashboard"
+                className="text-sm font-medium hover:text-primary transition-colors"
               >
                 Dashboard
+              </Link>
+
+              {/* Notification Bell */}
+              <button
+                onClick={() => router.push('/notifications')}
+                className="relative p-2 rounded-lg hover:bg-muted transition-colors"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                )}
               </button>
-            </nav>
+
+              {/* Theme Toggle */}
+              <button
+                onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {themeMode === 'dark' ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <Moon className="w-5 h-5" />
+                )}
+              </button>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="text-sm font-medium hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

@@ -3,9 +3,10 @@ import { api } from '@/lib/axios';
 
 interface SubscriptionInfo {
   isPaid: boolean;
-  status: 'trial' | 'active' | 'expired';
-  trialDaysRemaining: number;
-  trialExpired: boolean;
+  status: 'free' | 'active' | 'expired';
+  daysRemaining: number;
+  subscriptionExpired: boolean;
+  expiresAt: string | null;
   plan: {
     _id: string;
     name: string;

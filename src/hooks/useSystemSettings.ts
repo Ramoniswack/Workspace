@@ -28,6 +28,19 @@ export function useSystemSettings() {
 
   useEffect(() => {
     fetchSettings();
+    
+    // Listen for WhatsApp number updates
+    const handleWhatsAppUpdate = (event: CustomEvent) => {
+      if (event.detail?.whatsappContactNumber) {
+        setSettings({ whatsappContactNumber: event.detail.whatsappContactNumber });
+      }
+    };
+    
+    window.addEventListener('whatsapp-number-updated', handleWhatsAppUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('whatsapp-number-updated', handleWhatsAppUpdate as EventListener);
+    };
   }, []);
 
   return {

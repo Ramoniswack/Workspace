@@ -219,8 +219,13 @@ export function CreateItemModal() {
 
   const modalContent = getModalContent();
 
+  // Only render for create types, not edit types
+  if (type !== 'space' && type !== 'folder' && type !== 'list') {
+    return null;
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
+    <Dialog open={isOpen && (type === 'space' || type === 'folder' || type === 'list')} onOpenChange={(open) => !open && closeModal()}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <div className="flex items-center gap-3">

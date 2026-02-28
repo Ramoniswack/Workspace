@@ -64,6 +64,9 @@ export function HierarchyItemComponent({ item, level, workspaceId, parentSpaceId
     }
   }, [userId, isAdminOrOwner]);
 
+  // Admins and owners can rename spaces/folders/lists
+  const canEdit = isAdminOrOwner;
+
   const isExpanded = expandedIds.includes(item._id);
   const isFavorite = favoriteIds.includes(item._id);
 
@@ -163,20 +166,12 @@ const getRoute = () => {
         onMouseLeave={() => setIsHovered(false)}
         style={{ paddingLeft: `${level * INDENT_SIZE}px` }}
       >
-        <Link
-          href={route}
-          className={cn(
-            'flex items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150',
-            'hover:bg-slate-100 dark:hover:bg-slate-800',
-            isActive && 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40',
-            !isActive && 'text-slate-700 dark:text-white'
-          )}
-        >
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150 hover:bg-slate-100 dark:hover:bg-slate-800">
           {/* Chevron - Only show if has children */}
           <button
             onClick={handleToggle}
             className={cn(
-              'flex items-center justify-center h-4 w-4 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors',
+              'flex items-center justify-center h-4 w-4 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0',
               !hasChildren && 'invisible'
             )}
           >
@@ -194,8 +189,17 @@ const getRoute = () => {
           {/* Icon */}
           <div className="flex-shrink-0">{getIcon()}</div>
 
-          {/* Name */}
-          <span className="flex-1 text-sm truncate">{item.name}</span>
+          {/* Name - Clickable Link */}
+          <Link
+            href={route}
+            className={cn(
+              'flex-1 text-sm truncate',
+              isActive && 'text-blue-700 dark:text-blue-400 font-medium',
+              !isActive && 'text-slate-700 dark:text-white'
+            )}
+          >
+            {item.name}
+          </Link>
 
           {/* Favorite Star */}
           {isFavorite && (
@@ -204,14 +208,18 @@ const getRoute = () => {
 
           {/* Hover Actions */}
           {isHovered && isAdminOrOwner && (
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {/* Add Button - For spaces: create folder */}
               {item.type === 'space' && canCreateContent && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={handleAdd}
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200 dark:hover:bg-slate-700"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAdd(e);
+                  }}
                   title="Create folder"
                 >
                   <Plus className="h-3 w-3" />
@@ -223,8 +231,12 @@ const getRoute = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={handleAdd}
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200 dark:hover:bg-slate-700"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAdd(e);
+                  }}
                   title="Create list"
                 >
                   <Plus className="h-3 w-3" />
@@ -232,12 +244,12 @@ const getRoute = () => {
               )}
 
               {/* More Menu */}
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200 dark:hover:bg-slate-700"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -246,14 +258,23 @@ const getRoute = () => {
                     <MoreHorizontal className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={handleToggleFavorite}>
+                <DropdownMenuContent 
+                  align="end" 
+                  className="w-48 z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite(e);
+                    }}
+                  >
                     <Star className="h-4 w-4 mr-2" />
                     {isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                   </DropdownMenuItem>
                   
-                  {/* Edit options for admin/owner */}
-                  {canCreateContent && (
+                  {/* Edit options for owner only */}
+                  {canEdit && (
                     <>
                       <DropdownMenuSeparator />
                       {item.type === 'space' && (
@@ -265,7 +286,7 @@ const getRoute = () => {
                           }}
                         >
                           <MoreHorizontal className="h-4 w-4 mr-2" />
-                          Edit space
+                          Rename space
                         </DropdownMenuItem>
                       )}
                       {item.type === 'folder' && (
@@ -277,7 +298,7 @@ const getRoute = () => {
                           }}
                         >
                           <MoreHorizontal className="h-4 w-4 mr-2" />
-                          Edit folder
+                          Rename folder
                         </DropdownMenuItem>
                       )}
                       {item.type === 'list' && (
@@ -289,7 +310,7 @@ const getRoute = () => {
                           }}
                         >
                           <MoreHorizontal className="h-4 w-4 mr-2" />
-                          Edit list
+                          Rename list
                         </DropdownMenuItem>
                       )}
                     </>
@@ -316,7 +337,8 @@ const getRoute = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            openModal('list', item._id, 'folder', item.name);
+                            const spaceId = parentSpaceId || (item as any).space || (item as any).spaceId;
+                            openModal('list', item._id, 'folder', item.name, spaceId);
                           }}
                         >
                           <Plus className="h-4 w-4 mr-2" />
@@ -329,7 +351,7 @@ const getRoute = () => {
               </DropdownMenu>
             </div>
           )}
-        </Link>
+        </div>
       </div>
 
 {isExpanded && (

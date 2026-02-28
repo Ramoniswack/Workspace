@@ -44,7 +44,7 @@ export function ListMemberManagement({
   const [spaceMembers, setSpaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [accessControlTier, setAccessControlTier] = useState<'none' | 'basic' | 'pro' | 'advanced'>('none');
+  const [accessControlTier, setAccessControlTier] = useState<'basic' | 'pro' | 'advanced'>('basic');
 
   useEffect(() => {
     if (open) {
@@ -57,11 +57,11 @@ export function ListMemberManagement({
   const fetchAccessControlTier = async () => {
     try {
       const response = await api.get(`/workspaces/${workspaceId}`);
-      const tier = response.data.data?.subscription?.plan?.features?.accessControlTier || 'none';
+      const tier = response.data.data?.subscription?.plan?.features?.accessControlTier || 'basic';
       setAccessControlTier(tier);
     } catch (error) {
       console.error('Failed to fetch access control tier:', error);
-      setAccessControlTier('none');
+      setAccessControlTier('basic');
     }
   };
 
@@ -116,7 +116,7 @@ export function ListMemberManagement({
     try {
       await api.post(`/lists/${listId}/list-members`, {
         userId,
-        permissionLevel: 'VIEW', // Default to VIEW permission
+        permissionLevel: 'FULL', // Default to FULL permission
       });
       
       // Send notification to the assigned member
@@ -158,7 +158,13 @@ export function ListMemberManagement({
     return labels[level] || level;
   };
 
-  const isFullAccessLocked = accessControlTier === 'none' || accessControlTier === 'basic' || accessControlTier === 'pro';
+  // Simplified access control tier logic (no 'none' tier):
+  // basic: Only "Full Access" available (Can Edit and Can View locked)
+  // pro: "Full Access" and "Can Edit" available (Can View locked)
+  // advanced: All access levels available (Full Access, Can Edit, Can View)
+  
+  const isCanEditLocked = accessControlTier === 'basic';
+  const isCanViewLocked = accessControlTier === 'basic' || accessControlTier === 'pro';
 
   const getPermissionBadgeColor = (level: string) => {
     const colors: Record<string, string> = {
@@ -187,14 +193,19 @@ export function ListMemberManagement({
           <DialogDescription>
             Assign members to this list and manage their permissions.
             <br />
-            <strong>Full Access:</strong> Create, edit, delete tasks {isFullAccessLocked && '(Advanced tier only)'}
+            <strong>Full Access:</strong> Create, edit, delete tasks (Available in all tiers)
             <br />
-            <strong>Can Edit:</strong> Change status only
+            <strong>Can Edit:</strong> Change status only {isCanEditLocked && '(Requires Pro tier or higher)'}
             <br />
-            <strong>View Only:</strong> View tasks only (default)
-            {isFullAccessLocked && (
-              <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-200">
-                <strong>Note:</strong> Full Access is only available with Advanced Access Control tier. Upgrade your plan to unlock this feature.
+            <strong>View Only:</strong> View tasks only {isCanViewLocked && '(Requires Advanced tier)'}
+            {accessControlTier === 'basic' && (
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-800 dark:text-blue-200">
+                <strong>Basic Tier:</strong> Members can be assigned "Full Access" only. Upgrade to Pro for "Can Edit" or Advanced for "View Only" permissions.
+              </div>
+            )}
+            {accessControlTier === 'pro' && (
+              <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded text-xs text-purple-800 dark:text-purple-200">
+                <strong>Pro Tier:</strong> Members can have "Full Access" or "Can Edit" permissions. Upgrade to Advanced for "View Only" option.
               </div>
             )}
           </DialogDescription>
@@ -252,22 +263,30 @@ export function ListMemberManagement({
                         </div>
                         <div className="flex items-center gap-2 ml-3">
                           <Select
-                            value={member.listPermissionLevel || 'VIEW'}
+                            value={member.listPermissionLevel || 'FULL'}
                             onValueChange={(value) => handleUpdatePermission(member._id, value)}
                           >
                             <SelectTrigger className="w-32 h-9">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem 
-                                value="FULL" 
-                                disabled={isFullAccessLocked}
-                                className={isFullAccessLocked ? 'opacity-50 cursor-not-allowed' : ''}
-                              >
-                                Full Access {isFullAccessLocked && '🔒'}
+                              <SelectItem value="FULL">
+                                Full Access
                               </SelectItem>
-                              <SelectItem value="EDIT">Can Edit</SelectItem>
-                              <SelectItem value="VIEW">View Only</SelectItem>
+                              <SelectItem 
+                                value="EDIT"
+                                disabled={isCanEditLocked}
+                                className={isCanEditLocked ? 'opacity-50 cursor-not-allowed' : ''}
+                              >
+                                Can Edit {isCanEditLocked && '🔒'}
+                              </SelectItem>
+                              <SelectItem 
+                                value="VIEW"
+                                disabled={isCanViewLocked}
+                                className={isCanViewLocked ? 'opacity-50 cursor-not-allowed' : ''}
+                              >
+                                View Only {isCanViewLocked && '🔒'}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <Button

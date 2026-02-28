@@ -422,7 +422,7 @@ export default function MembersPage() {
 
                   {/* Actions */}
                   <TableCell className="text-right">
-                    {can('remove_member') && !member.isOwner && (
+                    {can('remove_member') && isOwner() && !member.isOwner && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -506,7 +506,7 @@ export default function MembersPage() {
                   </Badge>
                 )}
 
-                {can('remove_member') && !member.isOwner && (
+                {can('remove_member') && isOwner() && !member.isOwner && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -539,7 +539,7 @@ export default function MembersPage() {
               <div>
                 <h4 className="font-medium text-card-foreground">Admin</h4>
                 <p className="text-sm text-muted-foreground">
-                  Can create/delete spaces, invite/remove members, and manage settings
+                  Can create/delete spaces, invite members, and manage settings
                 </p>
                 {maxAdmins !== -1 && (
                   <div className="mt-2 flex items-center gap-2">

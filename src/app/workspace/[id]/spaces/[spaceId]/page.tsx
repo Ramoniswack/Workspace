@@ -853,7 +853,7 @@ export default function SpaceHomePage() {
               {currentSpace.members?.map((member: any, idx: number) => {
                 const user = typeof member.user === 'object' ? member.user : null;
                 const memberId = typeof member.user === 'string' ? member.user : member.user?._id;
-                const canRemove = shouldShowAdminButtons && memberId !== userId;
+                const canRemove = isOwner && memberId !== userId;
                 return (
                   <div key={idx} className="p-4 hover:bg-accent/50 transition-colors group">
                     <div className="flex items-center gap-3">
