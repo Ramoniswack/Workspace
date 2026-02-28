@@ -278,7 +278,7 @@ export function ClickUpSidebar() {
   useEffect(() => {
     if (workspaceId) {
       fetchHierarchy();
-      setOnSuccess(() => fetchHierarchy);
+      setOnSuccess(fetchHierarchy);
     }
   }, [workspaceId, fetchHierarchy, setOnSuccess]);
 

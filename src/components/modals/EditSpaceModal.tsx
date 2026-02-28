@@ -87,7 +87,7 @@ export function EditSpaceModal() {
     setIsSubmitting(true);
 
     try {
-      await api.patch(`/spaces/${parentId}`, {
+      const response = await api.patch(`/spaces/${parentId}`, {
         name: values.name,
         status: values.status,
       });
@@ -100,7 +100,7 @@ export function EditSpaceModal() {
       
       // Call success callback to refresh sidebar
       if (onSuccess) {
-        onSuccess();
+        await onSuccess();
       }
     } catch (error: any) {
       console.error('Failed to update space:', error);

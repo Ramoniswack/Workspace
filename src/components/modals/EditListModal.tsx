@@ -87,7 +87,7 @@ export function EditListModal() {
       form.reset();
       
       if (onSuccess) {
-        onSuccess();
+        await onSuccess();
       }
     } catch (error: any) {
       console.error('Failed to update list:', error);
