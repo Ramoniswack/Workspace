@@ -31,8 +31,8 @@ export function DeleteZone({ isVisible, isOver, onDrop, onDragOver, onDragLeave 
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             animate={{
-              scale: isOver ? 1.2 : 1,
-              backgroundColor: isOver ? 'rgb(239, 68, 68)' : 'rgba(239, 68, 68, 0.1)',
+              scale: isOver ? 1.1 : 1,
+              backgroundColor: isOver ? 'rgb(239, 68, 68)' : 'rgba(239, 68, 68, 0.08)',
             }}
             transition={{
               type: 'spring',
@@ -40,15 +40,15 @@ export function DeleteZone({ isVisible, isOver, onDrop, onDragOver, onDragLeave 
               damping: 30,
             }}
             className={`
-              flex items-center justify-center w-16 h-16 rounded-full
-              border-2 border-red-500 backdrop-blur-sm
-              ${isOver ? 'shadow-2xl shadow-red-500/50' : 'shadow-lg'}
+              flex items-center justify-center w-12 h-12 rounded-full
+              border border-red-400/50 backdrop-blur-sm
+              ${isOver ? 'shadow-lg shadow-red-500/30' : 'shadow-md'}
             `}
           >
             <motion.div
               animate={{
-                scale: isOver ? 1.3 : 1,
-                rotate: isOver ? [0, -10, 10, -10, 10, 0] : 0,
+                scale: isOver ? 1.2 : 1,
+                rotate: isOver ? [0, -8, 8, -8, 8, 0] : 0,
               }}
               transition={{
                 scale: {
@@ -57,12 +57,12 @@ export function DeleteZone({ isVisible, isOver, onDrop, onDragOver, onDragLeave 
                   damping: 30,
                 },
                 rotate: {
-                  duration: 0.5,
+                  duration: 0.4,
                   ease: 'easeInOut',
                 },
               }}
             >
-              <Trash2 className={`w-7 h-7 ${isOver ? 'text-white' : 'text-red-500'}`} />
+              <Trash2 className={`w-5 h-5 ${isOver ? 'text-white' : 'text-red-500'} stroke-[1.5]`} />
             </motion.div>
           </motion.div>
         </motion.div>
