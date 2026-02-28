@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/axios';
 import { Plus, Loader2, FileText, Folder, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface Document {
   _id: string;
@@ -59,7 +60,7 @@ export default function DocumentsPage() {
       router.push(`/workspace/${workspaceId}/docs/${newDoc._id}`);
     } catch (error: any) {
       console.error('Failed to create document:', error);
-      alert(error.response?.data?.message || 'Failed to create document');
+      toast.error(error.response?.data?.message || 'Failed to create document');
     } finally {
       setCreating(false);
     }

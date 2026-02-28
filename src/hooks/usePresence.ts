@@ -29,7 +29,7 @@ export const usePresence = (workspaceId: string) => {
 
       if (response.data.success) {
         const users = response.data.data || [];
-        const onlineSet = new Set(users.map((u: any) => u._id));
+        const onlineSet = new Set<string>(users.map((u: any) => u._id as string));
         setOnlineUsers(onlineSet);
       }
     } catch (err) {

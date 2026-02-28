@@ -9,20 +9,7 @@ import {
 import { TaskCard } from './TaskCard';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Task {
-  _id: string;
-  title: string;
-  description?: string;
-  status: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: string;
-  assignee?: {
-    _id: string;
-    name: string;
-    email: string;
-  };
-}
+import { Task } from '@/types';
 
 interface BoardColumnProps {
   id: string;
@@ -30,6 +17,9 @@ interface BoardColumnProps {
   tasks: Task[];
   color: string;
   onAddTask?: () => void;
+  handleDragStart: (e: React.DragEvent, task: Task) => void;
+  canDrag: boolean;
+  spaceMembers: any[];
 }
 
 const statusColors: Record<string, string> = {
@@ -38,7 +28,7 @@ const statusColors: Record<string, string> = {
   done: 'border-green-500',
 };
 
-export function BoardColumn({ id, title, tasks, color, onAddTask }: BoardColumnProps) {
+export function BoardColumn({ id, title, tasks, color, onAddTask, handleDragStart, canDrag, spaceMembers }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -85,7 +75,7 @@ export function BoardColumn({ id, title, tasks, color, onAddTask }: BoardColumnP
               Drop tasks here
             </div>
           ) : (
-            tasks.map((task) => <TaskCard key={task._id} task={task} />)
+            tasks.map((task) => <TaskCard key={task._id} task={task} handleDragStart={handleDragStart} canDrag={canDrag} spaceMembers={spaceMembers} />)
           )}
         </SortableContext>
       </div>

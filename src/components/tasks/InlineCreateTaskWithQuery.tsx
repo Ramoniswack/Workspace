@@ -60,6 +60,7 @@ export default function InlineCreateTaskWithQuery({
       // Optimistically update to the new value
       const tempTask: Task = {
         _id: `temp-${Date.now()}`,
+        name: newTask.title, // Add name property
         title: newTask.title,
         status: newTask.status as any,
         priority: newTask.priority,

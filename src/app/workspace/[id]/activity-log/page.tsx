@@ -14,8 +14,13 @@ export default function ActivityLogPage() {
   const params = useParams();
   const workspaceId = params.id as string;
   
-  const { getActivitiesByWorkspace } = useActivityStore();
-  const activities = getActivitiesByWorkspace(workspaceId);
+  const { activities, loading, fetchActivities } = useActivityStore();
+
+  useEffect(() => {
+    if (workspaceId) {
+      fetchActivities({ workspaceId });
+    }
+  }, [workspaceId, fetchActivities]);
 
   const getInitials = (name: string) => {
     return name
@@ -93,32 +98,42 @@ export default function ActivityLogPage() {
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
                 {activities.map((activity) => (
                   <div
-                    key={activity.id}
+                    key={activity._id}
                     className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
                     <div className="flex items-start gap-4">
                       <Avatar className="w-12 h-12">
-                        <AvatarImage src={activity.userAvatar} />
+                        <AvatarImage src={activity.user.avatar} />
                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                          {getInitials(activity.userName)}
+                          {getInitials(activity.user.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="text-base">
                           <span className="font-semibold text-gray-900 dark:text-white">
-                            {activity.userName}
+                            {activity.user.name}
                           </span>
                           {' '}
                           <span className="text-gray-600 dark:text-gray-400">
-                            {getActionText(activity.action)}
+                            {activity.type === 'comment' ? 'commented on' : 'updated'}
                           </span>
                           {' '}
                           <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {activity.target}
+                            {activity.task.title}
                           </span>
                         </p>
+                        {activity.content && (
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                            {activity.content}
+                          </p>
+                        )}
+                        {activity.fieldChanged && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                            Changed {activity.fieldChanged}: {activity.oldValue} → {activity.newValue}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {new Date(activity.timestamp).toLocaleString('en-US', {
+                          {new Date(activity.createdAt).toLocaleString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',

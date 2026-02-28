@@ -10,15 +10,20 @@ interface UpgradeButtonProps {
   workspaceName: string;
   whatsappNumber?: string;
   className?: string;
+  nextPlanName?: string;
 }
 
 export default function UpgradeButton({ 
   workspaceName, 
   whatsappNumber = "+1234567890",
-  className = ""
+  className = "",
+  nextPlanName
 }: UpgradeButtonProps) {
   const [showPlansModal, setShowPlansModal] = useState(false);
   const { subscription } = useSubscription();
+
+  // Determine button text based on whether there's a next plan
+  const buttonText = nextPlanName ? `Upgrade to ${nextPlanName}` : 'Upgrade to Pro';
 
   return (
     <>
@@ -28,7 +33,7 @@ export default function UpgradeButton({
       >
         <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-pink-600/20 opacity-50"></div>
         <Zap className="w-4 h-4 mr-2 relative z-10" />
-        <span className="relative z-10">Upgrade to Pro</span>
+        <span className="relative z-10">{buttonText}</span>
       </Button>
 
       <PlansModal

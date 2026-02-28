@@ -18,10 +18,10 @@ export default function TrialCountdownBanner() {
 
   if (!subscription || dismissed) return null;
 
-  // Only show for trial users
-  if (subscription.status !== "trial") return null;
+  // Only show for free/trial users who haven't paid
+  if (subscription.isPaid) return null;
 
-  const trialDaysRemaining = subscription.trialDaysRemaining;
+  const trialDaysRemaining = subscription.daysRemaining;
   const isUrgent = trialDaysRemaining <= 3;
 
   const handleUpgrade = () => {

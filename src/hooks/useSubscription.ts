@@ -35,8 +35,19 @@ interface SubscriptionInfo {
   };
 }
 
+interface NextPlanInfo {
+  hasNextPlan: boolean;
+  nextPlan: {
+    _id: string;
+    name: string;
+    price: number;
+    features: any;
+  } | null;
+}
+
 export function useSubscription() {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [nextPlan, setNextPlan] = useState<NextPlanInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +65,18 @@ export function useSubscription() {
     }
   };
 
+  const fetchNextPlan = async () => {
+    try {
+      const response = await api.get('/subscription/next-plan');
+      setNextPlan(response.data.data);
+    } catch (err: any) {
+      console.error('Failed to fetch next plan:', err);
+    }
+  };
+
   useEffect(() => {
     fetchSubscription();
+    fetchNextPlan();
   }, []);
 
   const canCreateWorkspace = () => {
@@ -79,6 +100,7 @@ export function useSubscription() {
 
   return {
     subscription,
+    nextPlan,
     loading,
     error,
     refetch: fetchSubscription,

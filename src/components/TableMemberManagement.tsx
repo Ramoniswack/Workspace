@@ -11,37 +11,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash2, Search, Users, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface ListMember {
+interface TableMember {
   _id: string;
   name: string;
   email: string;
   avatar?: string;
   workspaceRole: string;
-  listPermissionLevel: string | null;
+  tablePermissionLevel: string | null;
   hasOverride: boolean;
   addedBy: string | null;
   addedAt: string | null;
 }
 
-interface ListMemberManagementProps {
+interface TableMemberManagementProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  listId: string;
-  listName: string;
+  tableId: string;
+  tableName: string;
   spaceId: string;
   workspaceId: string;
 }
 
-export function ListMemberManagement({
+export function TableMemberManagement({
   open,
   onOpenChange,
-  listId,
-  listName,
+  tableId,
+  tableName,
   spaceId,
   workspaceId,
-}: ListMemberManagementProps) {
-  const [members, setMembers] = useState<ListMember[]>([]);
-  const [spaceMembers, setSpaceMembers] = useState<any[]>([]);
+}: TableMemberManagementProps) {
+  const [members, setMembers] = useState<TableMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [accessControlTier, setAccessControlTier] = useState<'basic' | 'pro' | 'advanced'>('basic');
@@ -49,10 +48,9 @@ export function ListMemberManagement({
   useEffect(() => {
     if (open) {
       fetchMembers();
-      fetchSpaceMembers();
       fetchAccessControlTier();
     }
-  }, [open, listId, spaceId, workspaceId]);
+  }, [open, tableId, workspaceId]);
 
   const fetchAccessControlTier = async () => {
     try {
@@ -68,29 +66,19 @@ export function ListMemberManagement({
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/lists/${listId}/list-members`);
+      const response = await api.get(`/tables/${tableId}/table-members`);
       setMembers(response.data.data);
     } catch (error) {
-      console.error('Failed to fetch list members:', error);
-      toast.error('Failed to load list members');
+      console.error('Failed to fetch table members:', error);
+      toast.error('Failed to load table members');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSpaceMembers = async () => {
-    try {
-      const response = await api.get(`/spaces/${spaceId}/members`);
-      setSpaceMembers(response.data.data || []);
-    } catch (error) {
-      console.error('Failed to fetch space members:', error);
-      // If space members endpoint doesn't exist, we'll use workspace members from the list members API
-    }
-  };
-
   const handleUpdatePermission = async (userId: string, permissionLevel: string) => {
     try {
-      await api.patch(`/lists/${listId}/list-members/${userId}`, {
+      await api.patch(`/tables/${tableId}/table-members/${userId}`, {
         permissionLevel,
       });
       toast.success('Permission updated successfully');
@@ -103,8 +91,8 @@ export function ListMemberManagement({
 
   const handleRemoveMember = async (userId: string) => {
     try {
-      await api.delete(`/lists/${listId}/list-members/${userId}`);
-      toast.success('Member removed from list');
+      await api.delete(`/tables/${tableId}/table-members/${userId}`);
+      toast.success('Member removed from table');
       fetchMembers();
     } catch (error) {
       console.error('Failed to remove member:', error);
@@ -114,7 +102,7 @@ export function ListMemberManagement({
 
   const handleAssignMember = async (userId: string) => {
     try {
-      await api.post(`/lists/${listId}/list-members`, {
+      await api.post(`/tables/${tableId}/table-members`, {
         userId,
         permissionLevel: 'FULL', // Default to FULL permission
       });
@@ -123,16 +111,16 @@ export function ListMemberManagement({
       try {
         await api.post('/notifications', {
           recipientId: userId,
-          type: 'list_assignment',
-          title: 'Assigned to List',
-          message: `You've been assigned to "${listName}"`,
-          link: `/workspace/${listId}`,
+          type: 'table_assignment',
+          title: 'Assigned to Table',
+          message: `You've been assigned to table "${tableName}"`,
+          link: `/workspace/${workspaceId}/spaces/${spaceId}`,
         });
       } catch (notifError) {
         console.error('Failed to send notification:', notifError);
       }
       
-      toast.success('Member assigned to list');
+      toast.success('Member assigned to table');
       fetchMembers();
     } catch (error) {
       console.error('Failed to assign member:', error);
@@ -189,15 +177,15 @@ export function ListMemberManagement({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col dark:bg-[#1a1a1a]">
         <DialogHeader>
-          <DialogTitle>Manage List Members - {listName}</DialogTitle>
+          <DialogTitle>Manage Table Members - {tableName}</DialogTitle>
           <DialogDescription>
-            Assign members to this list and manage their permissions.
+            Assign members to this table and manage their permissions.
             <br />
-            <strong>Full Access:</strong> Create, edit, delete tasks (Available in all tiers)
+            <strong>Full Access:</strong> Create, edit, delete rows/columns (Available in all tiers)
             <br />
-            <strong>Can Edit:</strong> Change status only {isCanEditLocked && '(Requires Pro tier or higher)'}
+            <strong>Can Edit:</strong> Edit cell values only {isCanEditLocked && '(Requires Pro tier or higher)'}
             <br />
-            <strong>View Only:</strong> View tasks only {isCanViewLocked && '(Requires Advanced tier)'}
+            <strong>View Only:</strong> View table only {isCanViewLocked && '(Requires Advanced tier)'}
             {accessControlTier === 'basic' && (
               <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-800 dark:text-blue-200">
                 <strong>Basic Tier:</strong> Members can be assigned "Full Access" only. Upgrade to Pro for "Can Edit" or Advanced for "View Only" permissions.
@@ -231,12 +219,12 @@ export function ListMemberManagement({
             </div>
           ) : (
             <>
-              {/* Assigned List Members */}
+              {/* Assigned Table Members */}
               {assignedMembers.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                     <Users className="w-4 h-4" />
-                    Assigned List Members ({assignedMembers.length})
+                    Assigned Table Members ({assignedMembers.length})
                   </h3>
                   <div className="space-y-2">
                     {assignedMembers.map((member) => (
@@ -264,13 +252,13 @@ export function ListMemberManagement({
                               {member.email}
                             </p>
                           </div>
-                          <Badge className={getPermissionBadgeColor(member.listPermissionLevel!)}>
-                            {getPermissionLabel(member.listPermissionLevel!)}
+                          <Badge className={getPermissionBadgeColor(member.tablePermissionLevel!)}>
+                            {getPermissionLabel(member.tablePermissionLevel!)}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2 ml-3">
                           <Select
-                            value={member.listPermissionLevel || 'FULL'}
+                            value={member.tablePermissionLevel || 'FULL'}
                             onValueChange={(value) => handleUpdatePermission(member._id, value)}
                           >
                             <SelectTrigger className="w-32 h-9">
@@ -301,7 +289,7 @@ export function ListMemberManagement({
                             size="icon"
                             onClick={() => handleRemoveMember(member._id)}
                             className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            title="Remove from list"
+                            title="Remove from table"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

@@ -54,7 +54,7 @@ export default function PlanLimitsCard({ workspaceCount, onUpgrade }: PlanLimits
               {planName} Plan
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {isPaid ? 'Active subscription' : `${subscription.trialDaysRemaining} days trial remaining`}
+              {isPaid ? 'Active subscription' : `${subscription.daysRemaining} days trial remaining`}
             </p>
           </div>
           {!isPaid && (

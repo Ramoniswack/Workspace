@@ -13,6 +13,7 @@ export interface ChatMessage {
     _id: string;
     name: string;
     email: string;
+    avatar?: string;
   };
   content: string;
   type?: 'text' | 'system';
@@ -20,6 +21,10 @@ export interface ChatMessage {
   readBy?: string[];
   createdAt: string;
   updatedAt: string;
+  // Optimistic update fields
+  sending?: boolean;  // True while message is being sent
+  failed?: boolean;   // True if message failed to send
+  tempId?: string;    // Temporary ID for optimistic messages
 }
 
 interface UseChatOptions {

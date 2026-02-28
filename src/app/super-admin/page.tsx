@@ -36,26 +36,37 @@ export default function SuperAdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-gray-50">
       {/* Dark Sidebar */}
       <aside className={cn(
-        "fixed lg:relative inset-y-0 left-0 z-50 w-64 bg-[#0a0a0a] border-r border-gray-800 flex flex-col transition-all duration-300",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:-translate-x-full"
+        "fixed lg:sticky inset-y-0 left-0 top-0 z-50 h-screen bg-[#0a0a0a] border-r border-gray-800 flex flex-col transition-all duration-300",
+        sidebarOpen ? "w-64" : "w-0 lg:w-16"
       )}>
         {/* Logo/Header */}
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white">Super Admin</h1>
-            <p className="text-sm text-gray-400 mt-1">TaskFlow</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-gray-800 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <Icons.Cross2Icon className="w-5 h-5" />
-          </Button>
+        <div className={cn(
+          "p-6 border-b border-gray-800 flex items-center justify-between transition-all duration-300",
+          !sidebarOpen && "lg:p-3 lg:justify-center"
+        )}>
+          {sidebarOpen ? (
+            <>
+              <div>
+                <h1 className="text-xl font-bold text-white">Super Admin</h1>
+                <p className="text-sm text-gray-400 mt-1">TaskFlow</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-gray-800 lg:hidden"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Icons.Cross2Icon className="w-5 h-5" />
+              </Button>
+            </>
+          ) : (
+            <div className="hidden lg:block">
+              <Icons.DashboardIcon className="w-6 h-6 text-white" />
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -79,11 +90,13 @@ export default function SuperAdminDashboard() {
                     "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                     isActive
                       ? "bg-purple-600 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800"
+                      : "text-gray-400 hover:text-white hover:bg-gray-800",
+                    !sidebarOpen && "lg:justify-center lg:px-2"
                   )}
+                  title={!sidebarOpen ? item.label : undefined}
                 >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && <span>{item.label}</span>}
                 </button>
               );
             })}
@@ -94,10 +107,14 @@ export default function SuperAdminDashboard() {
         <div className="p-4 border-t border-gray-800">
           <button
             onClick={() => router.push("/dashboard")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors",
+              !sidebarOpen && "lg:justify-center lg:px-2"
+            )}
+            title={!sidebarOpen ? "Back to App" : undefined}
           >
-            <Icons.ArrowLeftIcon className="w-5 h-5" />
-            Back to App
+            <Icons.ArrowLeftIcon className="w-5 h-5 flex-shrink-0" />
+            {sidebarOpen && <span>Back to App</span>}
           </button>
         </div>
       </aside>
@@ -110,26 +127,34 @@ export default function SuperAdminDashboard() {
         />
       )}
 
-      {/* Main Content - Light Theme - Expands when sidebar is closed */}
-      <main className={cn(
-        "flex-1 overflow-auto bg-background min-h-screen transition-all duration-300",
-        !sidebarOpen && "lg:ml-0"
-      )}>
+      {/* Main Content - Properly expands when sidebar is collapsed */}
+      <main className="flex-1 overflow-auto bg-gray-50 min-h-screen">
         {/* Header with Hamburger */}
-        <div className="sticky top-0 z-30 bg-background border-b px-4 py-3 flex items-center gap-3">
+        <div className="sticky top-0 z-30 bg-white border-b shadow-sm px-4 py-4 flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="hover:bg-gray-100"
           >
             <Icons.HamburgerMenuIcon className="w-5 h-5" />
           </Button>
-          <h2 className="text-lg font-semibold">
-            {menuItems.find(item => item.id === activeTab)?.label}
-          </h2>
+          <div className="flex items-center gap-2">
+            {menuItems.find(item => item.id === activeTab)?.icon && (
+              <div className="text-purple-600">
+                {(() => {
+                  const Icon = menuItems.find(item => item.id === activeTab)?.icon;
+                  return Icon ? <Icon className="w-5 h-5" /> : null;
+                })()}
+              </div>
+            )}
+            <h2 className="text-lg font-semibold text-gray-900">
+              {menuItems.find(item => item.id === activeTab)?.label}
+            </h2>
+          </div>
         </div>
 
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
           {activeTab === "dashboard" && <AnalyticsDashboard />}
           {activeTab === "plans" && <PlanBuilderNew />}
           {activeTab === "users" && <UserManagementNew />}

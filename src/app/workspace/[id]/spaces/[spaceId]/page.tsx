@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/axios';
 import { List, Workspace } from '@/types';
+import { CustomTableView } from '@/components/tables/CustomTableView';
+import { UpgradePrompt } from '@/components/roles/UpgradePrompt';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import {
   ArrowLeft,
   Settings,
@@ -20,6 +23,8 @@ import {
   Users,
   AlertCircle,
   Power,
+  Table as TableIcon,
+  Lock,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +40,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { InviteMemberModal } from '@/components/InviteMemberModal';
 import { SpaceMemberManagement } from '@/components/SpaceMemberManagement';
+import { DeleteTableModal } from '@/components/modals/DeleteTableModal';
 import { useSpaceStore } from '@/store/useSpaceStore';
 import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -104,6 +110,53 @@ export default function SpaceHomePage() {
   const [searchMemberQuery, setSearchMemberQuery] = useState('');
   const [showAllMembersModal, setShowAllMembersModal] = useState(false);
 
+  // Tables state
+  const [activeTab, setActiveTab] = useState<'lists' | 'tables'>(() => {
+    // Initialize from URL parameter if present
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      if (tab === 'tables') return 'tables';
+    }
+    return 'lists';
+  });
+  const [tables, setTables] = useState<any[]>([]);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(() => {
+    // Initialize from URL parameter if present
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('tableId');
+    }
+    return null;
+  });
+  const [showCreateTableModal, setShowCreateTableModal] = useState(false);
+  const [newTableName, setNewTableName] = useState('');
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [showDeleteTableModal, setShowDeleteTableModal] = useState(false);
+  const [tableToDelete, setTableToDelete] = useState<{ id: string; name: string } | null>(null);
+  const { usage, limits, canCreateTable, canAddRow } = useEntitlements();
+
+  // Update URL when tab or table changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const url = new URL(window.location.href);
+    if (activeTab === 'tables') {
+      url.searchParams.set('tab', 'tables');
+      if (selectedTableId) {
+        url.searchParams.set('tableId', selectedTableId);
+      } else {
+        url.searchParams.delete('tableId');
+      }
+    } else {
+      url.searchParams.delete('tab');
+      url.searchParams.delete('tableId');
+    }
+    
+    // Update URL without reloading page
+    window.history.replaceState({}, '', url.toString());
+  }, [activeTab, selectedTableId]);
+
   // Consolidated loading state
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -156,6 +209,16 @@ export default function SpaceHomePage() {
         ]);
 
         if (!isMounted) return;
+
+        // Fetch tables for this space
+        try {
+          const tablesRes = await api.get(`/spaces/${spaceId}/tables`);
+          if (!isMounted) return;
+          setTables(tablesRes.data.data || tablesRes.data.tables || []);
+        } catch (error) {
+          console.error('[SpacePage] Failed to fetch tables:', error);
+          // Non-critical error, continue
+        }
 
         // Fetch space permission level
         try {
@@ -396,6 +459,114 @@ export default function SpaceHomePage() {
     setExpandedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }));
   };
 
+  const handleCreateTable = async () => {
+    if (!newTableName.trim()) {
+      toast.error('Table name is required');
+      return;
+    }
+
+    // Check entitlement
+    const canCreate = await canCreateTable();
+    if (!canCreate) {
+      setShowUpgradePrompt(true);
+      setShowCreateTableModal(false);
+      return;
+    }
+
+    try {
+      // Generate unique IDs for columns
+      const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      // Get the number of columns and rows allowed from plan limits
+      const maxColumns = limits?.maxColumnsLimit || 2;
+      const maxRows = limits?.maxRowsLimit || 1;
+      
+      const numColumns = maxColumns === -1 ? 2 : Math.min(maxColumns, 10); // Cap at 10 for initial creation
+      const numRows = maxRows === -1 ? 1 : Math.min(maxRows, 10); // Cap at 10 for initial creation
+      
+      // Create columns based on plan limit
+      const columns = Array.from({ length: numColumns }, (_, i) => ({
+        id: generateId(),
+        title: `Column ${i + 1}`,
+        type: 'text' as const
+      }));
+      
+      const response = await api.post(`/spaces/${spaceId}/tables`, {
+        name: newTableName,
+        columns,
+        initialRows: numRows
+      });
+      
+      // Backend returns { success: true, data: table }
+      const newTable = response.data.data || response.data.table;
+      
+      if (newTable) {
+        // Normalize the table data (convert plain objects to Maps)
+        const normalizedTable = {
+          ...newTable,
+          rows: newTable.rows?.map((row: any) => ({
+            ...row,
+            data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}))
+          })) || []
+        };
+        
+        setTables([...tables, normalizedTable]);
+        setShowCreateTableModal(false);
+        setNewTableName('');
+        toast.success(`Table created with ${numColumns} column${numColumns !== 1 ? 's' : ''} and ${numRows} row${numRows !== 1 ? 's' : ''}`);
+      } else {
+        console.error('[Table Creation] No table data in response:', response.data);
+        toast.error('Table created but could not be displayed. Please refresh the page.');
+      }
+    } catch (error: any) {
+      console.error('[Table Creation] Error:', error);
+      console.error('[Table Creation] Response:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || 'Failed to create table';
+      const errorCode = error.response?.data?.code;
+      
+      // User-friendly error messages
+      if (errorCode === 'TABLES_FEATURE_UNAVAILABLE') {
+        toast.error('Custom tables are not available in your current plan. Upgrade to Pro or Enterprise to unlock this feature.');
+      } else if (errorCode === 'TABLE_LIMIT_REACHED') {
+        const currentCount = error.response?.data?.currentCount || 0;
+        const maxAllowed = error.response?.data?.maxAllowed || 0;
+        toast.error(`You've reached your table limit (${currentCount}/${maxAllowed}). Upgrade your plan to create more tables.`);
+      } else {
+        toast.error(errorMessage);
+      }
+      
+      if (error.response?.data?.code === 'TABLE_LIMIT_REACHED' || error.response?.data?.code === 'TABLES_FEATURE_UNAVAILABLE') {
+        setShowUpgradePrompt(true);
+      }
+    }
+  };
+
+  const handleDeleteTable = async () => {
+    if (!tableToDelete) return;
+
+    try {
+      await api.delete(`/tables/${tableToDelete.id}`);
+      setTables(tables.filter(t => t._id !== tableToDelete.id));
+      if (selectedTableId === tableToDelete.id) {
+        setSelectedTableId(null);
+      }
+      toast.success('Table deleted successfully');
+    } catch (error: any) {
+      console.error('[Table Deletion] Error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to delete table';
+      toast.error(errorMessage);
+    } finally {
+      setTableToDelete(null);
+    }
+  };
+
+  const openDeleteTableModal = (tableId: string, tableName: string) => {
+    setTableToDelete({ id: tableId, name: tableName });
+    setShowDeleteTableModal(true);
+  };
+
   const getInitials = (name: string) => {
     return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
   };
@@ -633,7 +804,43 @@ export default function SpaceHomePage() {
           </Card>
         </div>
 
+        {/* Tabs Navigation */}
+        <div className="flex items-center gap-4 mb-6 border-b border-border">
+          <button
+            onClick={() => setActiveTab('lists')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              activeTab === 'lists'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              <span>Lists & Folders</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('tables')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              activeTab === 'tables'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <TableIcon className="w-4 h-4" />
+              <span>Tables</span>
+              {tables.length > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {tables.length}
+                </Badge>
+              )}
+            </div>
+          </button>
+        </div>
+
         {/* Lists & Folders Section */}
+        {activeTab === 'lists' && (
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h2 className="text-xl font-bold">Lists & Folders</h2>
@@ -842,6 +1049,199 @@ export default function SpaceHomePage() {
             </div>
           )}
         </div>
+        )}
+
+        {/* Tables Section */}
+        {activeTab === 'tables' && (
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Custom Tables</h2>
+                {limits && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {usage?.totalTables || 0} of {limits.maxTablesCount === -1 ? '∞' : limits.maxTablesCount} tables
+                  </p>
+                )}
+              </div>
+              {canCreateContent && (
+                <Button
+                  onClick={async () => {
+                    const canCreate = await canCreateTable();
+                    if (canCreate) {
+                      setShowCreateTableModal(true);
+                    } else {
+                      setShowUpgradePrompt(true);
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  disabled={!!(limits && limits.maxTablesCount !== -1 && (usage?.totalTables || 0) >= limits.maxTablesCount)}
+                >
+                  {limits && limits.maxTablesCount !== -1 && (usage?.totalTables || 0) >= limits.maxTablesCount ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Limit Reached</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>Add Table</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {selectedTableId ? (
+              <div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedTableId(null)}
+                  className="mb-4"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Tables
+                </Button>
+                <CustomTableView spaceId={spaceId} tableId={selectedTableId} workspaceId={workspaceId} />
+              </div>
+            ) : tables.length === 0 ? (
+              <Card className="border-2 border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: `${spaceColor}20` }}>
+                    <TableIcon className="w-8 h-8" style={{ color: spaceColor }} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">No Tables Yet</h3>
+                  <p className="text-sm text-muted-foreground text-center mb-6 max-w-md px-4">
+                    Create custom tables to organize data in a spreadsheet-like format with colors and Excel export.
+                  </p>
+                  {canCreateContent && (
+                    <Button
+                      onClick={async () => {
+                        const canCreate = await canCreateTable();
+                        if (canCreate) {
+                          setShowCreateTableModal(true);
+                        } else {
+                          setShowUpgradePrompt(true);
+                        }
+                      }}
+                      variant="outline"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create First Table
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tables.filter(table => table && table._id).map((table) => (
+                  <Card
+                    key={table._id}
+                    className="cursor-pointer hover:shadow-md transition-all hover:border-primary/50"
+                    onClick={() => setSelectedTableId(table._id)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div
+                            className="w-10 h-10 rounded-lg flex items-center justify-center"
+                            style={{ backgroundColor: `${spaceColor}20` }}
+                          >
+                            <TableIcon className="w-5 h-5" style={{ color: spaceColor }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold truncate">{table.name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {table.rows?.length || 0} rows, {table.columns?.length || 0} columns
+                            </p>
+                          </div>
+                        </div>
+                        {isOwner && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <button className="p-1 hover:bg-accent rounded transition-colors">
+                                <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDeleteTableModal(table._id, table.name);
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Table
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Create Table Modal */}
+        <Dialog open={showCreateTableModal} onOpenChange={setShowCreateTableModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Table</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="tableName">Table Name</Label>
+                <Input
+                  id="tableName"
+                  value={newTableName}
+                  onChange={(e) => setNewTableName(e.target.value)}
+                  placeholder="Product Roadmap, Budget Tracker, etc."
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateTableModal(false);
+                    setNewTableName('');
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateTable} className="flex-1">
+                  Create Table
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Upgrade Prompt */}
+        <UpgradePrompt
+          show={showUpgradePrompt}
+          feature="customTables"
+          currentPlan="Free"
+          requiredPlan="Pro"
+          onClose={() => setShowUpgradePrompt(false)}
+          onUpgrade={() => {
+            window.location.href = '/pricing';
+          }}
+        />
+
+        {/* Delete Table Modal */}
+        <DeleteTableModal
+          open={showDeleteTableModal}
+          onOpenChange={setShowDeleteTableModal}
+          tableName={tableToDelete?.name || ''}
+          onConfirm={handleDeleteTable}
+        />
         
         {/* All Members Modal */}
         <Dialog open={showAllMembersModal} onOpenChange={setShowAllMembersModal}>

@@ -28,6 +28,15 @@ const getStatusColor = (status: Task['status']) => {
 };
 
 export function TaskCard({ task, handleDragStart, canDrag, spaceMembers }: TaskCardProps) {
+  // Find assignee in space members to get custom role
+  const assignee = task.assignee && typeof task.assignee === 'object' ? task.assignee : null;
+  const assigneeMember = assignee ? spaceMembers.find(m => {
+    const userId = typeof m.user === 'string' ? m.user : m.user?._id;
+    return userId === assignee._id;
+  }) : null;
+
+  const displayRole = assigneeMember?.customRoleTitle || (assignee ? 'Member' : null);
+
   return (
     <>
       <DropIndicator beforeId={task._id} column={task.status} />
@@ -44,7 +53,15 @@ export function TaskCard({ task, handleDragStart, canDrag, spaceMembers }: TaskC
         {/* Status Color Indicator - Left Border */}
         <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${getStatusColor(task.status)}`} />
         
-        <p className="text-sm text-foreground pl-2">{task.title}</p>
+        <div className="pl-2">
+          <p className="text-sm text-foreground">{task.title}</p>
+          {assignee && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              <span>{assignee.name}</span>
+              {displayRole && <span className="ml-1">• {displayRole}</span>}
+            </div>
+          )}
+        </div>
       </motion.div>
     </>
   );

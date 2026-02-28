@@ -306,7 +306,9 @@ const getRoute = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            openModal('editList', item._id, 'list', item.name);
+                            // For lists, parent is either folder or space
+                            const parentType = (item as any).folder ? 'folder' : 'space';
+                            openModal('editList', item._id, parentType, item.name);
                           }}
                         >
                           <MoreHorizontal className="h-4 w-4 mr-2" />

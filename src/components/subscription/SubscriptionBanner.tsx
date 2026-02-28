@@ -19,7 +19,7 @@ export default function SubscriptionBanner({
   if (!subscription || dismissed) return null;
 
   // Show banner if trial is expiring soon (less than 7 days) or expired
-  const showBanner = subscription.trialDaysRemaining <= 7 && !subscription.isPaid;
+  const showBanner = subscription.daysRemaining <= 7 && !subscription.isPaid;
 
   if (!showBanner) return null;
 
@@ -29,7 +29,7 @@ export default function SubscriptionBanner({
     window.open(whatsappUrl, '_blank');
   };
 
-  const isExpired = subscription.trialExpired;
+  const isExpired = subscription.daysRemaining <= 0;
 
   return (
     <div className={`relative ${isExpired ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'} border-b`}>
@@ -42,7 +42,7 @@ export default function SubscriptionBanner({
                 {isExpired ? (
                   'Your trial has expired'
                 ) : (
-                  `Your trial expires in ${subscription.trialDaysRemaining} day${subscription.trialDaysRemaining === 1 ? '' : 's'}`
+                  `Your trial expires in ${subscription.daysRemaining} day${subscription.daysRemaining === 1 ? '' : 's'}`
                 )}
               </p>
               <p className={`text-xs ${isExpired ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>

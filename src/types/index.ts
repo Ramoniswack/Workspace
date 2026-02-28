@@ -1,3 +1,5 @@
+import { ReactNode } from 'react';
+
 // Core Types
 export interface User {
   _id: string;

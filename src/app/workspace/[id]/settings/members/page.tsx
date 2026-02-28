@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import UpgradeModal from '@/components/subscription/UpgradeModal';
+import { RoleSelector } from '@/components/RoleSelector';
 import {
   ArrowLeft,
   Loader2,
@@ -45,6 +46,7 @@ interface Member {
   email: string;
   role: 'owner' | 'admin' | 'member' | 'guest';
   isOwner: boolean;
+  customRoleTitle?: string;
 }
 
 export default function MembersPage() {
@@ -64,13 +66,23 @@ export default function MembersPage() {
   const [maxAdmins, setMaxAdmins] = useState<number>(1);
   const [currentAdminCount, setCurrentAdminCount] = useState<number>(0);
 
+  // Custom roles state
+  const [showCustomRoleModal, setShowCustomRoleModal] = useState(false);
+  const [customRoleTitle, setCustomRoleTitle] = useState('');
+  const [editingCustomRole, setEditingCustomRole] = useState<{ memberId: string; currentTitle: string } | null>(null);
+  const [canUseCustomRoles, setCanUseCustomRoles] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [savingCustomRole, setSavingCustomRole] = useState(false);
+  const [maxCustomRoles, setMaxCustomRoles] = useState<number>(0);
+  const [currentCustomRoleCount, setCurrentCustomRoleCount] = useState<number>(0);
+
   // Subscription state
   const { canInviteMember } = useSubscription();
   const { whatsappNumber } = useSystemSettings();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     fetchMembers();
+    checkCustomRoleEntitlement();
   }, [workspaceId]);
 
   // Socket.IO listeners for real-time member updates
@@ -129,6 +141,14 @@ export default function MembersPage() {
       // Count current admins
       const adminCount = membersRes.data.data.filter((m: Member) => m.role === 'admin').length;
       setCurrentAdminCount(adminCount);
+      
+      // Get max custom roles from owner's subscription
+      const maxCustomRolesLimit = workspaceRes.data.subscription?.plan?.features?.maxCustomRoles || 0;
+      setMaxCustomRoles(maxCustomRolesLimit);
+      
+      // Count current custom roles
+      const customRoleCount = membersRes.data.data.filter((m: Member) => m.customRoleTitle && m.customRoleTitle.trim() !== '').length;
+      setCurrentCustomRoleCount(customRoleCount);
     } catch (error: any) {
       console.error('Failed to fetch members:', error);
       setError(error.response?.data?.message || 'Failed to load members');
@@ -199,6 +219,26 @@ export default function MembersPage() {
     }
   };
 
+  const handleMemberUpdate = (memberId: string, updates: Partial<Member>) => {
+    setMembers(prevMembers =>
+      prevMembers.map(member =>
+        member._id === memberId ? { ...member, ...updates } : member
+      )
+    );
+    // Refresh the member list to get the latest data
+    fetchMembers();
+  };
+
+  // Wrapper to handle IWorkspaceMember updates
+  const handleWorkspaceMemberUpdate = (memberId: string, updates: Partial<import('@/types/pro-features').IWorkspaceMember>) => {
+    // Convert IWorkspaceMember updates to Member updates
+    const memberUpdates: Partial<Member> = {
+      ...updates,
+      customRoleTitle: updates.customRoleTitle === null ? undefined : updates.customRoleTitle,
+    };
+    handleMemberUpdate(memberId, memberUpdates);
+  };
+
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
@@ -243,6 +283,91 @@ export default function MembersPage() {
       }
     } finally {
       setInviting(false);
+    }
+  };
+
+  // Custom role functions
+  const checkCustomRoleEntitlement = async () => {
+    try {
+      const response = await api.get('/entitlements/check', {
+        params: { action: 'useCustomRoles' },
+      });
+      setCanUseCustomRoles(response.data.allowed);
+    } catch (error: any) {
+      console.error('Failed to check custom role entitlement:', error);
+      setCanUseCustomRoles(false);
+    }
+  };
+
+  const handleOpenCustomRoleModal = (memberId: string, currentTitle?: string) => {
+    if (!canUseCustomRoles) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    
+    // Check if adding a new custom role (not editing existing)
+    if (!currentTitle) {
+      // Check if limit is reached
+      if (maxCustomRoles !== -1 && currentCustomRoleCount >= maxCustomRoles) {
+        toast.error(`You've reached your custom role limit (${currentCustomRoleCount}/${maxCustomRoles}). Upgrade your plan to add more custom roles.`);
+        setShowUpgradeModal(true);
+        return;
+      }
+    }
+    
+    setEditingCustomRole({ memberId, currentTitle: currentTitle || '' });
+    setCustomRoleTitle(currentTitle || '');
+    setShowCustomRoleModal(true);
+  };
+
+  const handleSaveCustomRole = async () => {
+    if (!editingCustomRole) return;
+
+    setSavingCustomRole(true);
+    try {
+      const response = await api.patch(
+        `/workspaces/${workspaceId}/members/${editingCustomRole.memberId}/custom-role`,
+        { customRoleTitle: customRoleTitle.trim() || null }
+      );
+      
+      // Update local state
+      setMembers(prevMembers =>
+        prevMembers.map(member =>
+          member._id === editingCustomRole.memberId
+            ? { ...member, customRoleTitle: customRoleTitle.trim() || undefined, role: 'member' }
+            : member
+        )
+      );
+      
+      // Update custom role count
+      const wasAdding = !editingCustomRole.currentTitle && customRoleTitle.trim();
+      const wasRemoving = editingCustomRole.currentTitle && !customRoleTitle.trim();
+      
+      if (wasAdding) {
+        setCurrentCustomRoleCount(prev => prev + 1);
+      } else if (wasRemoving) {
+        setCurrentCustomRoleCount(prev => Math.max(0, prev - 1));
+      }
+      
+      toast.success(customRoleTitle.trim() ? 'Custom role assigned' : 'Custom role removed');
+      setShowCustomRoleModal(false);
+      setEditingCustomRole(null);
+      setCustomRoleTitle('');
+    } catch (error: any) {
+      console.error('Failed to assign custom role:', error);
+      
+      // Check for limit error
+      if (error.response?.data?.code === 'CUSTOM_ROLE_LIMIT_REACHED') {
+        const currentCount = error.response?.data?.currentCount || 0;
+        const maxAllowed = error.response?.data?.maxAllowed || 0;
+        toast.error(`Custom role limit reached (${currentCount}/${maxAllowed}). Upgrade your plan to add more custom roles.`);
+        setShowUpgradeModal(true);
+        setShowCustomRoleModal(false);
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to assign custom role');
+      }
+    } finally {
+      setSavingCustomRole(false);
     }
   };
 
@@ -371,52 +496,40 @@ export default function MembersPage() {
                   {/* Role */}
                   <TableCell>
                     {isOwner() && !member.isOwner ? (
-                      <Select
-                        value={member.role}
-                        onValueChange={(value) => handleRoleChange(member._id, value)}
-                        disabled={updating === member._id}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          {updating === member._id ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Updating...</span>
-                            </div>
-                          ) : (
-                            <SelectValue />
-                          )}
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">
-                            <div className="flex items-center gap-2">
-                              <Shield className="w-4 h-4 text-blue-500" />
-                              Admin
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="member">
-                            <div className="flex items-center gap-2">
-                              <UserIcon className="w-4 h-4 text-green-500" />
-                              Member
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="guest">
-                            <div className="flex items-center gap-2">
-                              <Eye className="w-4 h-4 text-gray-500" />
-                              Guest
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      updating === member._id ? (
+                        <div className="flex items-center gap-2 px-3 py-2 border rounded-md">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Updating...</span>
+                        </div>
+                      ) : (
+                        <RoleSelector
+                          value={member.role}
+                          customRoleTitle={member.customRoleTitle}
+                          onChange={(value) => handleRoleChange(member._id, value)}
+                          onAddCustomRole={() => handleOpenCustomRoleModal(member._id, member.customRoleTitle)}
+                          canUseCustomRoles={canUseCustomRoles}
+                        />
+                      )
                     ) : (
-                      <Badge
-                        variant="outline"
-                        className={`flex items-center gap-2 w-fit ${getRoleBadgeColor(
-                          member.role
-                        )}`}
-                      >
-                        {getRoleIcon(member.role)}
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                      </Badge>
+                      member.customRoleTitle ? (
+                        <Badge
+                          variant="outline"
+                          className="flex items-center gap-2 w-fit bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/20 dark:text-purple-400"
+                        >
+                          <UserIcon className="w-4 h-4" />
+                          {member.customRoleTitle}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={`flex items-center gap-2 w-fit ${getRoleBadgeColor(
+                            member.role
+                          )}`}
+                        >
+                          {getRoleIcon(member.role)}
+                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        </Badge>
+                      )
                     )}
                   </TableCell>
 
@@ -460,50 +573,39 @@ export default function MembersPage() {
 
               <div className="flex items-center justify-between gap-2">
                 {isOwner() && !member.isOwner ? (
-                  <Select
-                    value={member.role}
-                    onValueChange={(value) => handleRoleChange(member._id, value)}
-                    disabled={updating === member._id}
-                  >
-                    <SelectTrigger className="flex-1">
-                      {updating === member._id ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Updating...</span>
-                        </div>
-                      ) : (
-                        <SelectValue />
-                      )}
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-4 h-4 text-blue-500" />
-                          Admin
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="member">
-                        <div className="flex items-center gap-2">
-                          <UserIcon className="w-4 h-4 text-green-500" />
-                          Member
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="guest">
-                        <div className="flex items-center gap-2">
-                          <Eye className="w-4 h-4 text-gray-500" />
-                          Guest
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  updating === member._id ? (
+                    <div className="flex items-center gap-2 px-3 py-2 border rounded-md flex-1">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Updating...</span>
+                    </div>
+                  ) : (
+                    <RoleSelector
+                      value={member.role}
+                      customRoleTitle={member.customRoleTitle}
+                      onChange={(value) => handleRoleChange(member._id, value)}
+                      onAddCustomRole={() => handleOpenCustomRoleModal(member._id, member.customRoleTitle)}
+                      canUseCustomRoles={canUseCustomRoles}
+                      disabled={updating === member._id}
+                    />
+                  )
                 ) : (
-                  <Badge
-                    variant="outline"
-                    className={`flex items-center gap-2 ${getRoleBadgeColor(member.role)}`}
-                  >
-                    {getRoleIcon(member.role)}
-                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                  </Badge>
+                  member.customRoleTitle ? (
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-2 bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/20 dark:text-purple-400"
+                    >
+                      <UserIcon className="w-4 h-4" />
+                      {member.customRoleTitle}
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className={`flex items-center gap-2 ${getRoleBadgeColor(member.role)}`}
+                    >
+                      {getRoleIcon(member.role)}
+                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                    </Badge>
+                  )
                 )}
 
                 {can('remove_member') && isOwner() && !member.isOwner && (
@@ -580,9 +682,89 @@ export default function MembersPage() {
                 </p>
               </div>
             </div>
+            {canUseCustomRoles && (
+              <div className="flex gap-3 md:col-span-2">
+                <UserIcon className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-card-foreground">Custom Roles</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Create custom role titles with member permissions
+                  </p>
+                  {maxCustomRoles !== -1 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        currentCustomRoleCount >= maxCustomRoles 
+                          ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400' 
+                          : 'bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400'
+                      }`}>
+                        {currentCustomRoleCount}/{maxCustomRoles} Custom Roles
+                      </div>
+                      {currentCustomRoleCount >= maxCustomRoles && (
+                        <button
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                        >
+                          Upgrade to add more
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
+
+      {/* Custom Role Modal */}
+      {showCustomRoleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl p-6 w-full max-w-md border border-border">
+            <h3 className="text-xl font-bold text-card-foreground mb-4">
+              {editingCustomRole?.currentTitle ? 'Edit Custom Role' : 'Create Custom Role'}
+            </h3>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <Label htmlFor="customRoleTitle">Role Title</Label>
+                <Input
+                  id="customRoleTitle"
+                  value={customRoleTitle}
+                  onChange={(e) => setCustomRoleTitle(e.target.value)}
+                  placeholder="e.g., QA Engineer, Project Manager"
+                  maxLength={50}
+                  className="min-h-[44px]"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  This role will have member permissions but display as "{customRoleTitle || 'Custom Role'}"
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCustomRoleModal(false);
+                  setEditingCustomRole(null);
+                  setCustomRoleTitle('');
+                }}
+                disabled={savingCustomRole}
+                className="flex-1 min-h-[44px]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveCustomRole}
+                disabled={savingCustomRole || !customRoleTitle.trim()}
+                className="flex-1 min-h-[44px]"
+              >
+                {savingCustomRole ? 'Saving...' : 'Save Role'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite Member Modal */}
       {showInviteModal && (

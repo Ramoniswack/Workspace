@@ -26,7 +26,7 @@ export function MobileSidebar() {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="p-0 w-[300px]">
-        <ClickUpSidebar onNavigate={() => setOpen(false)} />
+        <ClickUpSidebar />
       </SheetContent>
     </Sheet>
   );

@@ -20,6 +20,8 @@ import {
   CheckSquare,
   Bell,
   Lock,
+  Table,
+  UserCog,
 } from "lucide-react";
 
 interface Plan {
@@ -41,6 +43,10 @@ interface Plan {
     messageLimit: number;
     announcementCooldown: number;
     accessControlTier: 'basic' | 'pro' | 'advanced';
+    canUseCustomRoles: boolean;
+    canCreateTables: boolean;
+    maxTablesCount: number;
+    maxRowsLimit: number;
   };
   isActive: boolean;
 }
@@ -505,6 +511,26 @@ export default function PlanBuilder() {
                       {plan.features.announcementCooldown}h Announcement Cooldown
                     </span>
                   </div>
+                  {plan.features.canUseCustomRoles && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <UserCog className="w-4 h-4 text-purple-500" />
+                      <span>Custom Display Roles</span>
+                    </div>
+                  )}
+                  {plan.features.canCreateTables && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Table className="w-4 h-4 text-teal-500" />
+                      <span>
+                        Custom Tables ({plan.features.maxTablesCount === -1
+                          ? "Unlimited"
+                          : plan.features.maxTablesCount}{" "}
+                        tables, {plan.features.maxRowsLimit === -1
+                          ? "Unlimited"
+                          : plan.features.maxRowsLimit}{" "}
+                        rows)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {!plan.isActive && (
@@ -552,6 +578,10 @@ function PlanForm({
     messageLimit: plan?.features.messageLimit ?? 100,
     announcementCooldown: plan?.features.announcementCooldown ?? 24,
     accessControlTier: plan?.features.accessControlTier || 'basic',
+    canUseCustomRoles: plan?.features.canUseCustomRoles || false,
+    canCreateTables: plan?.features.canCreateTables || false,
+    maxTablesCount: plan?.features.maxTablesCount ?? 0,
+    maxRowsLimit: plan?.features.maxRowsLimit ?? 0,
   });
 
   // Update parent plan when parentPlanId changes
@@ -576,6 +606,10 @@ function PlanForm({
           messageLimit: parent.features.messageLimit,
           announcementCooldown: parent.features.announcementCooldown,
           accessControlTier: parent.features.accessControlTier,
+          canUseCustomRoles: parent.features.canUseCustomRoles,
+          canCreateTables: parent.features.canCreateTables,
+          maxTablesCount: parent.features.maxTablesCount,
+          maxRowsLimit: parent.features.maxRowsLimit,
         }));
       }
     } else {
@@ -602,6 +636,17 @@ function PlanForm({
       return;
     }
     
+    // Validate Pro/Enterprise feature limits
+    if (formData.maxTablesCount < -1) {
+      toast.error('Max Tables Count must be -1 (unlimited) or greater');
+      return;
+    }
+    
+    if (formData.maxRowsLimit < -1) {
+      toast.error('Max Rows Limit must be -1 (unlimited) or greater');
+      return;
+    }
+    
     const payload: any = {
       name: formData.name.trim(),
       price: Number(formData.price),
@@ -619,6 +664,10 @@ function PlanForm({
         messageLimit: Number(formData.messageLimit),
         announcementCooldown: Number(formData.announcementCooldown),
         accessControlTier: formData.accessControlTier,
+        canUseCustomRoles: Boolean(formData.canUseCustomRoles),
+        canCreateTables: Boolean(formData.canCreateTables),
+        maxTablesCount: Number(formData.maxTablesCount),
+        maxRowsLimit: Number(formData.maxRowsLimit),
       },
     };
     
@@ -902,6 +951,116 @@ function PlanForm({
           </select>
           <p className="text-xs text-muted-foreground mt-1">Controls which permission levels can be assigned to list members. Basic unlocks "Full Access", Pro adds "Can Edit", Advanced adds "View Only".</p>
         </div>
+      </div>
+
+      {/* Pro/Enterprise Features Section */}
+      <div className="space-y-4">
+        <h4 className="text-sm font-semibold text-purple-500 uppercase tracking-wider flex items-center gap-2">
+          <div className="w-1 h-4 bg-purple-500 rounded"></div>
+          Pro/Enterprise Features
+        </h4>
+        
+        {/* Display inherited features from parent plan */}
+        {parentPlan && (
+          <div className="p-3 bg-muted/50 border border-muted rounded-lg space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Inherited from {parentPlan.name}</p>
+            <div className="space-y-1.5 text-xs">
+              {parentPlan.features.canUseCustomRoles && (
+                <div className="flex items-center gap-2">
+                  <UserCog className="w-3 h-3 text-purple-500" />
+                  <span>Custom Display Roles</span>
+                </div>
+              )}
+              {parentPlan.features.canCreateTables && (
+                <div className="flex items-center gap-2">
+                  <Table className="w-3 h-3 text-teal-500" />
+                  <span>
+                    Custom Tables ({parentPlan.features.maxTablesCount === -1 ? "Unlimited" : parentPlan.features.maxTablesCount} tables, 
+                    {" "}{parentPlan.features.maxRowsLimit === -1 ? "Unlimited" : parentPlan.features.maxRowsLimit} rows)
+                  </span>
+                </div>
+              )}
+              {!parentPlan.features.canUseCustomRoles && !parentPlan.features.canCreateTables && (
+                <p className="text-muted-foreground italic">No Pro/Enterprise features inherited</p>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Custom Display Roles */}
+        <div className="flex items-center gap-3 p-3 bg-background border rounded-lg">
+          <input
+            type="checkbox"
+            id="canUseCustomRoles"
+            checked={formData.canUseCustomRoles}
+            onChange={(e) => setFormData({ ...formData, canUseCustomRoles: e.target.checked })}
+            className="w-4 h-4 rounded border text-primary focus:ring-primary"
+          />
+          <label htmlFor="canUseCustomRoles" className="flex-1 flex items-center gap-2 text-sm cursor-pointer">
+            <UserCog className="w-4 h-4 text-purple-500" />
+            <div>
+              <div className="font-medium">Enable Custom Display Roles</div>
+              <div className="text-xs text-muted-foreground">Allow workspace owners to assign custom titles to members</div>
+            </div>
+          </label>
+        </div>
+        
+        {/* Custom Tables */}
+        <div className="flex items-center gap-3 p-3 bg-background border rounded-lg">
+          <input
+            type="checkbox"
+            id="canCreateTables"
+            checked={formData.canCreateTables}
+            onChange={(e) => setFormData({ ...formData, canCreateTables: e.target.checked })}
+            className="w-4 h-4 rounded border text-primary focus:ring-primary"
+          />
+          <label htmlFor="canCreateTables" className="flex-1 flex items-center gap-2 text-sm cursor-pointer">
+            <Table className="w-4 h-4 text-teal-500" />
+            <div>
+              <div className="font-medium">Enable Custom Tables</div>
+              <div className="text-xs text-muted-foreground">Allow users to create spreadsheet-like tables within spaces</div>
+            </div>
+          </label>
+        </div>
+        
+        {/* Table Limits - Only show when Custom Tables is enabled */}
+        {formData.canCreateTables && (
+          <div className="ml-4 pl-4 border-l-2 border-teal-500/30 space-y-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <Table className="w-3 h-3" />
+                Max Tables Count
+              </label>
+              <input
+                type="number"
+                placeholder="-1 for unlimited"
+                value={formData.maxTablesCount}
+                onChange={(e) => setFormData({ ...formData, maxTablesCount: parseInt(e.target.value) })}
+                className="w-full bg-background border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                required
+                min="-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Maximum tables across all workspaces (-1 for unlimited)</p>
+            </div>
+            
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <Table className="w-3 h-3" />
+                Max Rows Limit
+              </label>
+              <input
+                type="number"
+                placeholder="-1 for unlimited"
+                value={formData.maxRowsLimit}
+                onChange={(e) => setFormData({ ...formData, maxRowsLimit: parseInt(e.target.value) })}
+                className="w-full bg-background border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                required
+                min="-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Maximum rows across all tables in all workspaces (-1 for unlimited)</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}

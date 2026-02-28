@@ -199,6 +199,9 @@ export default function PermissionsSettings() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Additional sections can be added here */}
         </div>
       </main>
     </div>

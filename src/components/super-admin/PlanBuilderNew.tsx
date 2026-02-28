@@ -30,6 +30,16 @@ interface Plan {
     messageLimit: number;
     announcementCooldown: number;
     accessControlTier: 'basic' | 'pro' | 'advanced';
+    // Custom Roles & Table Permissions
+    canUseCustomRoles: boolean;
+    maxCustomRoles: number;
+    canCreateTables: boolean;
+    maxTablesCount: number;
+    maxRowsLimit: number;
+    maxColumnsLimit: number;
+    maxFiles: number;
+    maxDocuments: number;
+    maxDirectMessagesPerUser: number;
   };
   isActive: boolean;
 }
@@ -325,6 +335,45 @@ export default function PlanBuilderNew() {
                     <Icons.ChatBubbleIcon className="w-4 h-4 text-muted-foreground" />
                     <span>
                       Group Chat ({plan.features.messageLimit === -1 ? "Unlimited" : plan.features.messageLimit} msgs/mo)
+                    </span>
+                  </div>
+                )}
+                
+                {plan.features.canCreateTables && (
+                  <>
+                    <Separator className="my-3" />
+                    <div className="flex items-center gap-3 text-sm">
+                      <Icons.TableIcon className="w-4 h-4 text-muted-foreground" />
+                      <span>
+                        Custom Tables ({plan.features.maxTablesCount === -1 ? "Unlimited" : plan.features.maxTablesCount})
+                      </span>
+                    </div>
+                  </>
+                )}
+                
+                {(plan.features.maxFiles !== undefined && plan.features.maxFiles !== 0) && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Icons.FileIcon className="w-4 h-4 text-muted-foreground" />
+                    <span>
+                      Files ({plan.features.maxFiles === -1 ? "Unlimited" : plan.features.maxFiles})
+                    </span>
+                  </div>
+                )}
+                
+                {(plan.features.maxDocuments !== undefined && plan.features.maxDocuments !== 0) && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Icons.FileTextIcon className="w-4 h-4 text-muted-foreground" />
+                    <span>
+                      Documents ({plan.features.maxDocuments === -1 ? "Unlimited" : plan.features.maxDocuments})
+                    </span>
+                  </div>
+                )}
+                
+                {(plan.features.maxDirectMessagesPerUser !== undefined && plan.features.maxDirectMessagesPerUser !== 0) && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Icons.EnvelopeClosedIcon className="w-4 h-4 text-muted-foreground" />
+                    <span>
+                      DMs ({plan.features.maxDirectMessagesPerUser === -1 ? "Unlimited" : plan.features.maxDirectMessagesPerUser}/user)
                     </span>
                   </div>
                 )}

@@ -55,7 +55,7 @@ export function ClickUpSidebar() {
   const { setWorkspaceContext } = useWorkspaceContext();
   const { unreadCount } = useNotificationStore();
   const { accentColor } = useThemeStore();
-  const { subscription } = useSubscription();
+  const { subscription, nextPlan } = useSubscription();
   const { whatsappNumber } = useSystemSettings();
 
   // Use workspace store instead of local state
@@ -602,14 +602,17 @@ export function ClickUpSidebar() {
             )}
           </ScrollArea>
 
-          {/* Upgrade Button - Only show for non-paid users who are admin/owner */}
-          {subscription && !subscription.isPaid && (isAdmin() || isOwner()) && (
-            <div className="px-3 py-2 border-t border-slate-200 dark:border-slate-800">
-              <UpgradeButton 
-                workspaceName={hierarchy?.workspaceName || 'Workspace'}
-                whatsappNumber={whatsappNumber}
-              />
-            </div>
+          {/* Upgrade Button - Show for non-paid users OR paid users with higher plans available */}
+          {subscription && (isAdmin() || isOwner()) && (
+            (!subscription.isPaid || (nextPlan?.hasNextPlan)) && (
+              <div className="px-3 py-2 border-t border-slate-200 dark:border-slate-800">
+                <UpgradeButton 
+                  workspaceName={hierarchy?.workspaceName || 'Workspace'}
+                  whatsappNumber={whatsappNumber}
+                  nextPlanName={nextPlan?.nextPlan?.name}
+                />
+              </div>
+            )
           )}
 
           {/* User Profile */}
