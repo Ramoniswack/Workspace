@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import * as Icons from "@radix-ui/react-icons";
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import CreatePlanModal from "@/components/modals/CreatePlanModal";
-import EditPlanModal from "@/components/modals/EditPlanModal";
 
 interface Plan {
   _id: string;
@@ -49,11 +48,10 @@ interface SystemSettings {
 }
 
 export default function PlanBuilderNew() {
+  const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [settings, setSettings] = useState<SystemSettings>({ whatsappContactNumber: "" });
   const [loading, setLoading] = useState(true);
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
   useEffect(() => {
@@ -221,7 +219,7 @@ export default function PlanBuilderNew() {
           <h2 className="text-2xl font-bold tracking-tight">Subscription Plans</h2>
           <p className="text-muted-foreground text-sm mt-1">Manage your pricing tiers and features</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="gap-2">
+        <Button onClick={() => router.push('/super-admin/plans/create')} className="gap-2">
           <Icons.PlusIcon className="w-4 h-4" />
           Create Plan
         </Button>
@@ -256,7 +254,7 @@ export default function PlanBuilderNew() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setEditingPlan(plan)}
+                    onClick={() => router.push(`/super-admin/plans/edit/${plan._id}`)}
                     title="Edit plan"
                   >
                     <Icons.Pencil1Icon className="w-4 h-4" />
@@ -382,20 +380,6 @@ export default function PlanBuilderNew() {
           </Card>
         ))}
       </div>
-
-      {/* Modals */}
-      <CreatePlanModal
-        open={showCreateModal}
-        onOpenChange={setShowCreateModal}
-        onSuccess={fetchPlans}
-        plans={plans}
-      />
-      <EditPlanModal
-        open={!!editingPlan}
-        onOpenChange={(open) => !open && setEditingPlan(null)}
-        onSuccess={fetchPlans}
-        plan={editingPlan}
-      />
     </div>
   );
 }

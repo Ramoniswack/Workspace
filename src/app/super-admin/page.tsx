@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as Icons from "@radix-ui/react-icons";
 import AnalyticsDashboard from "@/components/super-admin/AnalyticsDashboard";
 import PlanBuilderNew from "@/components/super-admin/PlanBuilderNew";
@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "plans" | "users">("dashboard");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<"dashboard" | "plans" | "users">(
+    (tabParam as "dashboard" | "plans" | "users") || "dashboard"
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -28,6 +32,13 @@ export default function SuperAdminDashboard() {
       return;
     }
   }, [router]);
+
+  // Update active tab when URL changes
+  useEffect(() => {
+    if (tabParam && ['dashboard', 'plans', 'users'].includes(tabParam)) {
+      setActiveTab(tabParam as "dashboard" | "plans" | "users");
+    }
+  }, [tabParam]);
 
   const menuItems = [
     { id: "dashboard", label: "Analytics", icon: Icons.DashboardIcon },

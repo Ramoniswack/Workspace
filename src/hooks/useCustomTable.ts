@@ -10,6 +10,7 @@ interface UseCustomTableReturn {
   error: string | null;
   updateCell: (rowId: string, columnId: string, value: any) => void;
   updateCellColor: (rowId: string, columnId: string, color: string | null, silent?: boolean) => Promise<void>;
+  updateCellTextColor: (rowId: string, columnId: string, color: string | null, silent?: boolean) => Promise<void>;
   addRow: () => Promise<string | null>;
   deleteRow: (rowId: string) => Promise<void>;
   addColumn: () => Promise<void>;
@@ -43,13 +44,14 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
       // Backend returns { success: true, data: table }
       const tableData = response.data.data || response.data.table;
       if (tableData) {
-        // Convert plain objects to Maps for data and colors
+        // Convert plain objects to Maps for data, colors, and textColors
         const normalizedTable = {
           ...tableData,
           rows: tableData.rows.map((row: any) => ({
             ...row,
             data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
-            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}))
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {})),
+            textColors: row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}))
           }))
         };
         setTable(normalizedTable);
@@ -119,7 +121,8 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
           rows: tableData.rows.map((row: any) => ({
             ...row,
             data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
-            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}))
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {})),
+            textColors: row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}))
           }))
         };
         setTable(normalizedTable);
@@ -197,7 +200,8 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
           rows: tableData.rows.map((row: any) => ({
             ...row,
             data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
-            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}))
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {})),
+            textColors: row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}))
           }))
         };
         setTable(normalizedTable);
@@ -226,6 +230,88 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
   }, [tableId, table]);
 
   /**
+   * Update a cell's text color with optimistic update
+   * 
+   * @param rowId - The ID of the row
+   * @param columnId - The ID of the column
+   * @param color - The hex color string (null to remove)
+   * @param silent - If true, don't show toast notifications
+   */
+  const updateCellTextColor = useCallback(async (
+    rowId: string,
+    columnId: string,
+    color: string | null,
+    silent: boolean = false
+  ) => {
+    // Store previous state for rollback
+    const previousTable = table;
+
+    // Optimistic update
+    setTable(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rows: prev.rows.map(row => {
+          if (row.id === rowId) {
+            // Handle both Map and plain object from backend
+            const currentTextColors = row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}));
+            const newTextColors = new Map(currentTextColors) as Map<string, string>;
+            if (color === null) {
+              newTextColors.delete(columnId);
+            } else {
+              newTextColors.set(columnId, color);
+            }
+            return { ...row, textColors: newTextColors };
+          }
+          return row;
+        })
+      };
+    });
+
+    try {
+      const response = await api.patch(
+        `/tables/${tableId}/rows/${rowId}/text-colors/${columnId}`,
+        { color }
+      );
+      
+      // Reload table data from backend to ensure we have the latest
+      const tableData = response.data.data;
+      if (tableData) {
+        const normalizedTable = {
+          ...tableData,
+          rows: tableData.rows.map((row: any) => ({
+            ...row,
+            data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {})),
+            textColors: row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}))
+          }))
+        };
+        setTable(normalizedTable);
+      }
+      
+      if (!silent) {
+        toast.success('Text color updated');
+      }
+    } catch (err: any) {
+      // Revert on error
+      const errorMessage = err.response?.data?.message || 'Failed to update cell text color';
+      console.error('Failed to update cell text color:', {
+        tableId,
+        rowId,
+        columnId,
+        color,
+        error: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      setTable(previousTable);
+      setError(errorMessage);
+      toast.error(errorMessage);
+      throw err;
+    }
+  }, [tableId, table]);
+
+  /**
    * Add a new row to the table with entitlement check
    * 
    * @returns The ID of the newly created row, or null on failure
@@ -236,13 +322,14 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
       // Backend returns { success: true, data: table }
       const tableData = response.data.data || response.data.table;
       if (tableData) {
-        // Convert plain objects to Maps for data and colors
+        // Convert plain objects to Maps for data, colors, and textColors
         const normalizedTable = {
           ...tableData,
           rows: tableData.rows.map((row: any) => ({
             ...row,
             data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
-            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}))
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {})),
+            textColors: row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}))
           }))
         };
         setTable(normalizedTable);
@@ -321,7 +408,8 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
           rows: tableData.rows.map((row: any) => ({
             ...row,
             data: row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {})),
-            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}))
+            colors: row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {})),
+            textColors: row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}))
           }))
         };
         setTable(normalizedTable);
@@ -359,9 +447,11 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
         rows: prev.rows.map(row => {
           const newData = new Map(row.data);
           const newColors = new Map(row.colors);
+          const newTextColors = new Map(row.textColors);
           newData.delete(columnId);
           newColors.delete(columnId);
-          return { ...row, data: newData, colors: newColors };
+          newTextColors.delete(columnId);
+          return { ...row, data: newData, colors: newColors, textColors: newTextColors };
         })
       };
     });
@@ -393,6 +483,7 @@ export const useCustomTable = (tableId: string): UseCustomTableReturn => {
     error,
     updateCell,
     updateCellColor,
+    updateCellTextColor,
     addRow,
     deleteRow,
     addColumn,

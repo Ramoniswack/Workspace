@@ -23,6 +23,7 @@ export interface IRow {
   id: string;
   data: Map<string, any>;
   colors: Map<string, string>;
+  textColors: Map<string, string>;
 }
 
 export interface ICustomTable {

@@ -29,13 +29,14 @@ export const CustomTableView: React.FC<CustomTableViewProps> = ({ tableId, space
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set()); // Set of "rowId-colId"
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ rowId: string; colId: string } | null>(null);
   const [userPermission, setUserPermission] = useState<'FULL' | 'EDIT' | 'VIEW' | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const liveRegionRef = useRef<HTMLDivElement>(null);
   const { usage, limits, canAddRow, canAddColumn } = useEntitlements();
-  const { table, loading, saving, updateCell, updateCellColor, addRow, deleteRow, addColumn, deleteColumn } = useCustomTable(tableId);
+  const { table, loading, saving, updateCell, updateCellColor, updateCellTextColor, addRow, deleteRow, addColumn, deleteColumn } = useCustomTable(tableId);
 
   // Update user permission when table loads
   useEffect(() => {
@@ -236,6 +237,30 @@ export const CustomTableView: React.FC<CustomTableViewProps> = ({ tableId, space
     }
   }, [selectedCells, updateCellColor, canEdit, announceCellUpdate]);
 
+  const handleBulkTextColorChange = useCallback(async (color: string | null) => {
+    if (!canEdit || selectedCells.size === 0) return;
+    
+    // Apply text color to all selected cells sequentially to avoid version conflicts
+    const cellKeys = Array.from(selectedCells);
+    
+    try {
+      for (let i = 0; i < cellKeys.length; i++) {
+        const cellKey = cellKeys[i];
+        const [rowId, colId] = cellKey.split('-');
+        // Silent update - don't show individual toasts
+        await updateCellTextColor(rowId, colId, color, true);
+      }
+      
+      setShowTextColorPicker(false);
+      // Show single success toast after all updates
+      toast.success(`Text color ${color ? 'applied' : 'removed'} from ${selectedCells.size} cell(s)`);
+      announceCellUpdate(`Text color ${color ? 'applied' : 'removed'} from ${selectedCells.size} cell(s)`);
+    } catch (error) {
+      console.error('Error applying bulk text color:', error);
+      // Error already handled by updateCellTextColor
+    }
+  }, [selectedCells, updateCellTextColor, canEdit, announceCellUpdate]);
+
   const handleAddRow = async () => {
     // Check entitlement
     const canAdd = await canAddRow();
@@ -329,26 +354,48 @@ export const CustomTableView: React.FC<CustomTableViewProps> = ({ tableId, space
             </span>
           )}
           {canEdit && selectedCells.size > 0 && (
-            <div className="relative">
-              <button
-                onClick={() => setShowColorPicker(!showColorPicker)}
-                className="flex items-center gap-2 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                title={`Change color for ${selectedCells.size} selected cell(s)`}
-              >
-                <Palette className="h-4 w-4" />
-                <span>Color ({selectedCells.size})</span>
-              </button>
-              {showColorPicker && (
-                <div className="absolute top-full left-0 mt-1 z-50">
-                  <ColorPicker
-                    show={showColorPicker}
-                    currentColor={undefined}
-                    onColorSelect={handleBulkColorChange}
-                    onClose={() => setShowColorPicker(false)}
-                  />
-                </div>
-              )}
-            </div>
+            <>
+              <div className="relative">
+                <button
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  className="flex items-center gap-2 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title={`Change background color for ${selectedCells.size} selected cell(s)`}
+                >
+                  <Palette className="h-4 w-4" />
+                  <span>BG Color ({selectedCells.size})</span>
+                </button>
+                {showColorPicker && (
+                  <div className="absolute top-full left-0 mt-1 z-50">
+                    <ColorPicker
+                      show={showColorPicker}
+                      currentColor={undefined}
+                      onColorSelect={handleBulkColorChange}
+                      onClose={() => setShowColorPicker(false)}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowTextColorPicker(!showTextColorPicker)}
+                  className="flex items-center gap-2 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title={`Change text color for ${selectedCells.size} selected cell(s)`}
+                >
+                  <Palette className="h-4 w-4" />
+                  <span>Text Color ({selectedCells.size})</span>
+                </button>
+                {showTextColorPicker && (
+                  <div className="absolute top-full left-0 mt-1 z-50">
+                    <ColorPicker
+                      show={showTextColorPicker}
+                      currentColor={undefined}
+                      onColorSelect={handleBulkTextColorChange}
+                      onClose={() => setShowTextColorPicker(false)}
+                    />
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -452,6 +499,7 @@ export const CustomTableView: React.FC<CustomTableViewProps> = ({ tableId, space
                 // Ensure row.data is a Map, convert if needed
                 const dataMap = row.data instanceof Map ? row.data : new Map(Object.entries(row.data || {}));
                 const colorsMap = row.colors instanceof Map ? row.colors : new Map(Object.entries(row.colors || {}));
+                const textColorsMap = row.textColors instanceof Map ? row.textColors : new Map(Object.entries(row.textColors || {}));
 
                 return (
                   <tr
@@ -490,6 +538,7 @@ export const CustomTableView: React.FC<CustomTableViewProps> = ({ tableId, space
                           <CellEditor
                             value={dataMap.get(col.id)}
                             color={colorsMap.get(col.id) as string | undefined}
+                            textColor={textColorsMap.get(col.id) as string | undefined}
                             type={col.type}
                             isEditing={isEditing}
                             onValueChange={(value: any) => handleCellUpdate(row.id, col.id, value)}

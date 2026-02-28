@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 interface CellEditorProps {
   value: any;
   color?: string;
+  textColor?: string;
   type: 'text' | 'link' | 'number';
   isEditing?: boolean;
   readOnly?: boolean;
@@ -21,6 +22,7 @@ interface CellEditorProps {
 const CellEditorComponent: React.FC<CellEditorProps> = ({
   value,
   color,
+  textColor: propTextColor,
   type,
   isEditing: externalIsEditing,
   readOnly = false,
@@ -55,7 +57,8 @@ const CellEditorComponent: React.FC<CellEditorProps> = ({
     return luminance > 0.5 ? '#000000' : '#FFFFFF';
   };
 
-  const textColor = getTextColor(color);
+  // Use propTextColor if provided, otherwise auto-calculate based on background
+  const textColor = propTextColor || getTextColor(color);
 
   useEffect(() => {
     setLocalValue(value ?? '');
@@ -246,6 +249,7 @@ export const CellEditor = React.memo(CellEditorComponent, (prevProps, nextProps)
   return (
     prevProps.value === nextProps.value &&
     prevProps.color === nextProps.color &&
+    prevProps.textColor === nextProps.textColor &&
     prevProps.type === nextProps.type &&
     prevProps.isEditing === nextProps.isEditing &&
     prevProps.readOnly === nextProps.readOnly

@@ -239,7 +239,7 @@ export default function DashboardPage() {
 
   if (loading && workspaces.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
@@ -265,20 +265,20 @@ export default function DashboardPage() {
   const taskPercentage = maxTasks === -1 ? 0 : ((usage?.tasks || 0) / maxTasks) * 100;
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-background border-b">
+      <header className="bg-card border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">TaskFlow</h1>
+              <h1 className="text-2xl font-bold text-foreground">TaskFlow</h1>
               <p className="text-sm text-muted-foreground">Welcome back, {userName}</p>
             </div>
             <div className="flex items-center gap-3">
               {/* Pricing Link */}
               <button
                 onClick={() => setShowPricingModal(true)}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Pricing
               </button>
@@ -286,7 +286,7 @@ export default function DashboardPage() {
               {/* Notification Bell */}
               <button
                 onClick={() => setShowNotificationsModal(true)}
-                className="relative p-2 rounded-lg hover:bg-muted transition-colors"
+                className="relative p-2 rounded-lg hover:bg-accent transition-colors"
                 title="Notifications"
               >
                 <Bell className="w-5 h-5" />
@@ -300,7 +300,7 @@ export default function DashboardPage() {
               {/* Theme Toggle */}
               <button
                 onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
-                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                className="p-2 rounded-lg hover:bg-accent transition-colors"
                 title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {themeMode === 'dark' ? (
@@ -338,7 +338,7 @@ export default function DashboardPage() {
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h2 className="text-3xl font-semibold tracking-tight">Workspaces</h2>
+          <h2 className="text-3xl font-semibold tracking-tight text-foreground">Workspaces</h2>
           <p className="text-muted-foreground mt-1">Manage and access your project spaces</p>
         </div>
 
